@@ -178,14 +178,22 @@ int main() {
   }
 
   // evaluate
-  for(auto expr : exprs) {
+  for(size_t i = 0 ; i < exprs.size() ; i++) {
+    auto expr = exprs[i];
+
     const type_info& id = typeid(*expr);
     if(id == typeid(Lisp::CallFunction)) {
       auto call_fun = (Lisp::CallFunction*)expr;
-      if(call_fun->name == "print") {
+      auto name = call_fun->name;
+      if(name == "print") {
         for(auto arg : call_fun->args) {
           cout << ((Lisp::String*)arg)->value;
         }
+        exprs[i] = new Lisp::Nil;
+      }
+      else if(name == "inspect") {
+        cout << call_fun->args[0]->lisp_str() << endl;
+        exprs[i] = new Lisp::Nil;
       }
     }
   }
