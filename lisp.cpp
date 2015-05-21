@@ -10,6 +10,7 @@ enum TokenType{
   TOKEN_BRACKET_CLOSE,
   TOKEN_SYMBOL,
   TOKEN_STRING,
+  TOKEN_NIL,
 };
 
 class Token {
@@ -63,6 +64,14 @@ namespace Lisp {
 
     std::string lisp_str() { return '"' + value + '"'; }
   };
+
+  // TODO: RubyみたくExpression*に埋め込みたい
+  class Nil : public Expression {
+  public:
+    Nil() {}
+
+    std::string lisp_str() { return "nil"; }
+  };
 }
 
 bool is_symbol(char c) {
@@ -111,9 +120,25 @@ int main() {
           //TODO: raise an error
         }
       }
-      tokens.push_back(new Token(TOKEN_SYMBOL, code.substr(i, token_len)));
+
+      string token_val = code.substr(i, token_len);
+      TokenType token_type;
+      if(token_val == "nil")
+        token_type = TOKEN_NIL;
+      else
+        token_type = TOKEN_SYMBOL;
+
+      if(token_type == TOKEN_SYMBOL)
+        tokens.push_back(new Token(TOKEN_SYMBOL, token_val));
+      else
+        tokens.push_back(new Token(token_type));
+
       i += token_len - 1;
     }
+  }
+
+  for(auto token : tokens) {
+    cout << "token type: " << token->type << ", value: " << token->value << endl;
   }
 
   // parse
@@ -132,7 +157,15 @@ int main() {
 
         i++;
         for(; tokens[i]->type != TOKEN_BRACKET_CLOSE ; i++) {
-          args.push_back(new Lisp::String(tokens[i]->value));
+          switch(tokens[i]->type) {
+            case TOKEN_STRING:
+              args.push_back(new Lisp::String(tokens[i]->value));
+              break;
+            case TOKEN_NIL:
+              args.push_back(new Lisp::Nil());
+              break;
+            default: ;
+          }
         }
 
         exprs.push_back(new Lisp::CallFunction(name, args));
