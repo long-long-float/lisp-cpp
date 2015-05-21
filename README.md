@@ -1,2 +1,10 @@
-# lisp.c
-A pure lisp implementation of C
+# lisp-cpp
+A pure lisp interpreter of C++
+
+## Installing
+
+    $ make
+
+## Usage
+
+    $ ./lisp < FILE
