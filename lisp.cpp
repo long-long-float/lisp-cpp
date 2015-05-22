@@ -5,6 +5,8 @@
 #include <typeinfo>
 #include <ctype.h>
 
+#define CUR_TOKEN tokens[cur_pos]
+
 enum TokenType{
   TOKEN_BRACKET_OPEN,
   TOKEN_BRACKET_CLOSE,
@@ -91,6 +93,44 @@ namespace Lisp {
   };
 }
 
+std::vector<Token*> tokens;
+size_t cur_pos;
+
+Lisp::Expression* parse();
+
+Lisp::Expression* parse_call_fun() {
+  cur_pos++;
+  if(CUR_TOKEN->type != TOKEN_SYMBOL) {
+    //TODO: raise an error
+  }
+  std::string name;
+  name = CUR_TOKEN->value;
+
+  cur_pos++;
+  std::vector<Lisp::Expression*> args;
+  for(; cur_pos < tokens.size() && CUR_TOKEN->type != TOKEN_BRACKET_CLOSE ; cur_pos++) {
+    args.push_back(parse());
+  }
+
+  cur_pos++;
+
+  return new Lisp::CallFunction(name, args);
+}
+
+Lisp::Expression* parse() {
+  switch(CUR_TOKEN->type) {
+    case TOKEN_BRACKET_OPEN:
+      return parse_call_fun();
+    case TOKEN_STRING:
+      return new Lisp::String(CUR_TOKEN->value);
+    case TOKEN_NIL:
+      return new Lisp::Nil();
+    default:
+      //TODO: raise an error
+      return nullptr;
+  }
+}
+
 bool is_symbol(char c) {
   return isalnum(c) && isalpha(c);
 }
@@ -100,7 +140,6 @@ int main() {
 
   string code;
   //code.reserve(1024);
-  vector<Token*> tokens;
   vector<Lisp::Expression*> exprs;
 
   char ch;
@@ -159,39 +198,9 @@ int main() {
   }
 
   // parse
-  for(size_t i = 0 ; i < tokens.size() ; i++) {
-    Token* token = tokens[i];
-    switch(token->type) {
-      case TOKEN_BRACKET_OPEN: {
-        string name;
-        vector<Lisp::Expression*> args;
-
-        i++;
-        if(tokens[i]->type != TOKEN_STRING) {
-          //TODO: raise an error
-        }
-        name = tokens[i]->value;
-
-        i++;
-        for(; tokens[i]->type != TOKEN_BRACKET_CLOSE ; i++) {
-          switch(tokens[i]->type) {
-            case TOKEN_STRING:
-              args.push_back(new Lisp::String(tokens[i]->value));
-              break;
-            case TOKEN_NIL:
-              args.push_back(new Lisp::Nil());
-              break;
-            default: ;
-          }
-        }
-
-        exprs.push_back(new Lisp::CallFunction(name, args));
-
-        break;
-      }
-      default:
-        break;
-    }
+  cur_pos = 0;
+  while(cur_pos < tokens.size()) {
+    exprs.push_back(parse());
   }
 
   // evaluate
