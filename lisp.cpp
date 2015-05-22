@@ -212,6 +212,9 @@ int main() {
         cout << call_fun->args[0]->lisp_str() << endl;
         exprs[i] = new Lisp::Nil;
       }
+      else if(name == "list") {
+        exprs[i] = new Lisp::List(call_fun->args);
+      }
     }
   }
 
