@@ -65,6 +65,23 @@ namespace Lisp {
     std::string lisp_str() { return '"' + value + '"'; }
   };
 
+  class List : public Expression {
+  public:
+    std::vector<Expression*> values;
+
+    List(std::vector<Expression*> &avalues) : values(avalues) {}
+
+    std::string lisp_str() {
+      std::stringstream ss;
+      ss << "(";
+      for(Expression* value : values) {
+        ss << value->lisp_str() << " ";
+      }
+      ss << ")";
+      return ss.str();
+    }
+  };
+
   // TODO: RubyみたくExpression*に埋め込みたい
   class Nil : public Expression {
   public:
