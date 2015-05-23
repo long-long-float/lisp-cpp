@@ -2,10 +2,11 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <list>
 #include <typeinfo>
 #include <ctype.h>
 
-#define CUR_TOKEN tokens[cur_pos]
+#define PRINT_LINE (std::cout << "line: " << __LINE__ << std::endl)
 
 enum TokenType{
   TOKEN_BRACKET_OPEN,
@@ -24,6 +25,12 @@ public:
   }
 
   Token(TokenType atype, std::string avalue) : type(atype), value(avalue) {
+  }
+
+  std::string str() {
+    std::stringstream ss;
+    ss << "Token(" << type << ", " << value << ")";
+    return ss.str();
   }
 };
 
@@ -91,48 +98,126 @@ namespace Lisp {
 
     std::string lisp_str() { return "nil"; }
   };
-}
 
-std::vector<Token*> tokens;
-size_t cur_pos;
+  class Parser {
+  public:
+    std::vector<Expression*> parse(const std::string &code) {
+      tokens = tokenize(code);
 
-Lisp::Expression* parse();
+      /*for(auto tok : tokens) {
+        std::cout << tok->str() << std::endl;
+      }*/
 
-Lisp::Expression* parse_call_fun() {
-  cur_pos++;
-  if(CUR_TOKEN->type != TOKEN_SYMBOL) {
-    //TODO: raise an error
-  }
-  std::string name;
-  name = CUR_TOKEN->value;
+      std::vector<Expression*> exprs;
+      while(!tokens.empty()) {
+        exprs.push_back(parse_expr());
+      }
+      return exprs;
+    }
 
-  cur_pos++;
-  std::vector<Lisp::Expression*> args;
-  for(; cur_pos < tokens.size() && CUR_TOKEN->type != TOKEN_BRACKET_CLOSE ; cur_pos++) {
-    args.push_back(parse());
-  }
+  private:
+    std::list<Token*> tokens;
 
-  cur_pos++;
+    inline Token* cur_token() {
+      return tokens.empty() ? nullptr : tokens.front();
+    }
 
-  return new Lisp::CallFunction(name, args);
-}
+    void consume_token() {
+      auto ctoken = cur_token();
+      if(ctoken) delete ctoken;
 
-Lisp::Expression* parse() {
-  switch(CUR_TOKEN->type) {
-    case TOKEN_BRACKET_OPEN:
-      return parse_call_fun();
-    case TOKEN_STRING:
-      return new Lisp::String(CUR_TOKEN->value);
-    case TOKEN_NIL:
-      return new Lisp::Nil();
-    default:
-      //TODO: raise an error
-      return nullptr;
-  }
-}
+      if(!tokens.empty()) tokens.pop_front();
+    }
 
-bool is_symbol(char c) {
-  return isalnum(c) && isalpha(c);
+    Expression* parse_call_fun() {
+      consume_token();
+      if(cur_token()->type != TOKEN_SYMBOL) {
+        //TODO: raise an error
+      }
+      std::string name;
+      name = cur_token()->value;
+
+      consume_token();
+      std::vector<Expression*> args;
+      for(; !tokens.empty() && cur_token()->type != TOKEN_BRACKET_CLOSE ; consume_token()) {
+        args.push_back(parse_expr());
+      }
+
+      consume_token();
+
+      return new CallFunction(name, args);
+    }
+
+    Expression* parse_expr() {
+      switch(cur_token()->type) {
+        case TOKEN_BRACKET_OPEN:
+          return parse_call_fun();
+        case TOKEN_STRING:
+          return new String(cur_token()->value);
+        case TOKEN_NIL:
+          return new Nil();
+        default:
+          //TODO: raise an error
+          return nullptr;
+      }
+    }
+
+    bool is_symbol(char c) {
+      return isalnum(c) && isalpha(c);
+    }
+
+    std::list<Token*> tokenize(const std::string &code) {
+      std::list<Token*> tokens;
+
+      for(size_t i = 0 ; i < code.size() - 1 ; i++) { //TODO: -1を修正(EOFっぽい?)
+        char ch = code[i];
+        if(ch == '(')
+          tokens.push_back(new Token(TOKEN_BRACKET_OPEN));
+        else if(ch == ')')
+          tokens.push_back(new Token(TOKEN_BRACKET_CLOSE));
+        else if(ch == '"') { // string
+          i++;
+
+          size_t token_len = 0;
+          while(code[i + token_len] != '"') {
+            token_len++;
+            if(i + token_len >= code.size()) {
+              //TODO: raise an error
+            }
+          }
+          tokens.push_back(new Token(TOKEN_STRING, code.substr(i, token_len)));
+          i += token_len;
+        }
+        else if(ch == ' ' || ch == '\n')
+          ;//skip
+        else { // symbol
+          size_t token_len = 0;
+          while(is_symbol(code[i + token_len])) {
+            token_len++;
+            if(i + token_len >= code.size()) {
+              //TODO: raise an error
+            }
+          }
+
+          std::string token_val = code.substr(i, token_len);
+          TokenType token_type;
+          if(token_val == "nil")
+            token_type = TOKEN_NIL;
+          else
+            token_type = TOKEN_SYMBOL;
+
+          if(token_type == TOKEN_SYMBOL)
+            tokens.push_back(new Token(TOKEN_SYMBOL, token_val));
+          else
+            tokens.push_back(new Token(token_type));
+
+          i += token_len - 1;
+        }
+      }
+
+      return tokens;
+    }
+  };
 }
 
 int main() {
@@ -140,68 +225,14 @@ int main() {
 
   string code;
   //code.reserve(1024);
-  vector<Lisp::Expression*> exprs;
 
   char ch;
   while((ch = cin.get()) != std::char_traits<char>::eof()) {
     code.push_back(ch);
   }
 
-  for(size_t i = 0 ; i < code.size() - 1 ; i++) { //TODO: -1を修正(EOFっぽい?)
-    char ch = code[i];
-    if(ch == '(')
-      tokens.push_back(new Token(TOKEN_BRACKET_OPEN));
-    else if(ch == ')')
-      tokens.push_back(new Token(TOKEN_BRACKET_CLOSE));
-    else if(ch == '"') { // string
-      i++;
-
-      size_t token_len = 0;
-      while(code[i + token_len] != '"') {
-        token_len++;
-        if(i + token_len >= code.size()) {
-          //TODO: raise an error
-        }
-      }
-      tokens.push_back(new Token(TOKEN_STRING, code.substr(i, token_len)));
-      i += token_len;
-    }
-    else if(ch == ' ' || ch == '\n')
-      ;//skip
-    else { // symbol
-      size_t token_len = 0;
-      while(is_symbol(code[i + token_len])) {
-        token_len++;
-        if(i + token_len >= code.size()) {
-          //TODO: raise an error
-        }
-      }
-
-      string token_val = code.substr(i, token_len);
-      TokenType token_type;
-      if(token_val == "nil")
-        token_type = TOKEN_NIL;
-      else
-        token_type = TOKEN_SYMBOL;
-
-      if(token_type == TOKEN_SYMBOL)
-        tokens.push_back(new Token(TOKEN_SYMBOL, token_val));
-      else
-        tokens.push_back(new Token(token_type));
-
-      i += token_len - 1;
-    }
-  }
-
-  for(auto token : tokens) {
-    cout << "token type: " << token->type << ", value: " << token->value << endl;
-  }
-
-  // parse
-  cur_pos = 0;
-  while(cur_pos < tokens.size()) {
-    exprs.push_back(parse());
-  }
+  Lisp::Parser parser;
+  auto exprs = parser.parse(code);
 
   // evaluate
   for(size_t i = 0 ; i < exprs.size() ; i++) {
@@ -228,10 +259,6 @@ int main() {
   }
 
   // destruction
-  for(size_t i = 0 ; i < tokens.size() ; i++) {
-    delete tokens[i];
-  }
-
   for(size_t i = 0 ; i < exprs.size() ; i++) {
     delete exprs[i];
   }
