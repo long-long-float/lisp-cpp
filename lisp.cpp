@@ -223,6 +223,33 @@ namespace Lisp {
       return tokens;
     }
   };
+
+  class Evaluator {
+  public:
+    static Expression* evaluate(Expression* expr) {
+      const std::type_info& id = typeid(*expr);
+      if(id == typeid(CallFunction)) {
+        auto call_fun = (CallFunction*)expr;
+        auto name = call_fun->name;
+        if(name == "print") {
+          for(auto arg : call_fun->args) {
+            std::cout << ((String*)arg)->value;
+          }
+          return new Nil();
+        }
+        else if(name == "inspect") {
+          std::cout << (call_fun->args[0])->lisp_str() << std::endl;
+          return new Nil();
+        }
+        else if(name == "list") {
+          return new List(call_fun->args);
+        }
+      }
+
+      //TODO: raise an error
+      return nullptr;
+    }
+  };
 }
 
 
@@ -240,28 +267,8 @@ int main() {
   Lisp::Parser parser;
   auto exprs = parser.parse(code);
 
-  // evaluate
   for(size_t i = 0 ; i < exprs.size() ; i++) {
-    auto expr = exprs[i];
-
-    const type_info& id = typeid(*expr);
-    if(id == typeid(Lisp::CallFunction)) {
-      auto call_fun = (Lisp::CallFunction*)expr;
-      auto name = call_fun->name;
-      if(name == "print") {
-        for(auto arg : call_fun->args) {
-          cout << ((Lisp::String*)arg)->value;
-        }
-        exprs[i] = new Lisp::Nil;
-      }
-      else if(name == "inspect") {
-        cout << call_fun->args[0]->lisp_str() << endl;
-        exprs[i] = new Lisp::Nil;
-      }
-      else if(name == "list") {
-        exprs[i] = new Lisp::List(call_fun->args);
-      }
-    }
+    exprs[i] = Lisp::Evaluator::evaluate(exprs[i]);
   }
 
   // fake GC
