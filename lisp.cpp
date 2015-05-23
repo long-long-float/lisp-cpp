@@ -35,8 +35,18 @@ public:
 };
 
 namespace Lisp {
+  class Expression;
+}
+
+// memory allocated exprs
+std::list<Lisp::Expression*> objects;
+
+namespace Lisp {
   class Expression {
   public:
+    Expression() {
+      objects.push_back(this);
+    }
     virtual ~Expression() {}
 
     virtual std::string lisp_str() = 0;
@@ -48,11 +58,6 @@ namespace Lisp {
     std::vector<Expression*> args;
 
     CallFunction(std::string aname, std::vector<Expression*> &aargs) : name(aname), args(aargs) {}
-    ~CallFunction() {
-      for(size_t i = 0 ; i < args.size() ; i++) {
-        delete args[i];
-      }
-    }
 
     std::string lisp_str() {
       std::stringstream ss;
@@ -220,6 +225,7 @@ namespace Lisp {
   };
 }
 
+
 int main() {
   using namespace std;
 
@@ -258,9 +264,9 @@ int main() {
     }
   }
 
-  // destruction
-  for(size_t i = 0 ; i < exprs.size() ; i++) {
-    delete exprs[i];
+  // fake GC
+  for(auto expr : objects) {
+    delete expr;
   }
 
   return 0;
