@@ -232,22 +232,19 @@ namespace Lisp {
         auto call_fun = (CallFunction*)expr;
         auto name = call_fun->name;
         if(name == "print") {
-          for(auto arg : call_fun->args) {
-            std::cout << ((String*)arg)->value;
-          }
-          return new Nil();
-        }
-        else if(name == "inspect") {
-          std::cout << (call_fun->args[0])->lisp_str() << std::endl;
+          std::cout << (evaluate(call_fun->args[0]))->lisp_str() << std::endl;
           return new Nil();
         }
         else if(name == "list") {
-          return new List(call_fun->args);
+          auto args = call_fun->args;
+          for(size_t i = 0 ; i < args.size() ; i++) {
+            args[i] = evaluate(args[i]);
+          }
+          return new List(args);
         }
       }
 
-      //TODO: raise an error
-      return nullptr;
+      return expr;
     }
   };
 }
