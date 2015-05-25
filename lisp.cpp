@@ -115,6 +115,13 @@ namespace Lisp {
     std::string lisp_str() { return "nil"; }
   };
 
+  class T : public Expression {
+  public:
+    T() {}
+
+    std::string lisp_str() { return "T"; }
+  };
+
   class Parser {
   public:
     std::vector<Expression*> parse(const std::string &code) {
