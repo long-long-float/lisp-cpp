@@ -174,7 +174,7 @@ namespace Lisp {
         case TOKEN_SYMBOL:
           return new Symbol(cur_token()->value);
         default:
-          //TODO: raise an error
+          throw std::logic_error("unknown token: " + std::to_string(cur_token()->type));
           return nullptr;
       }
     }
