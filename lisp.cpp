@@ -4,6 +4,7 @@
 #include <vector>
 #include <list>
 #include <typeinfo>
+#include <stdexcept>
 #include <ctype.h>
 
 #define PRINT_LINE (std::cout << "line: " << __LINE__ << std::endl)
@@ -77,6 +78,15 @@ namespace Lisp {
     String(std::string &avalue) : value(avalue) {}
 
     std::string lisp_str() { return '"' + value + '"'; }
+  };
+
+  class Symbol : public Expression {
+  public:
+    std::string value;
+
+    Symbol(std::string &avalue) : value(avalue) {}
+
+    std::string lisp_str() { return value; }
   };
 
   class List : public Expression {
@@ -161,6 +171,8 @@ namespace Lisp {
           return new String(cur_token()->value);
         case TOKEN_NIL:
           return new Nil();
+        case TOKEN_SYMBOL:
+          return new Symbol(cur_token()->value);
         default:
           //TODO: raise an error
           return nullptr;
