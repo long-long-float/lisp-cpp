@@ -3,6 +3,7 @@
 #include <sstream>
 #include <vector>
 #include <list>
+#include <map>
 #include <typeinfo>
 #include <stdexcept>
 #include <ctype.h>
@@ -237,14 +238,19 @@ namespace Lisp {
   };
 
   class Evaluator {
-  public:
-    static Expression* evaluate(Expression* expr) {
+    std::map<std::string, Expression*> env;
+
+    Expression* eval_expr(Expression* expr) {
       const std::type_info& id = typeid(*expr);
       if(id == typeid(CallFunction)) {
         auto call_fun = (CallFunction*)expr;
         auto name = call_fun->name;
         if(name == "print") {
           std::cout << (evaluate(call_fun->args[0]))->lisp_str() << std::endl;
+          return new Nil();
+        }
+        else if(name == "setq") {
+          env[((Symbol*)call_fun->args[0])->value] = call_fun->args[1];
           return new Nil();
         }
         else if(name == "list") {
@@ -255,8 +261,16 @@ namespace Lisp {
           return new List(args);
         }
       }
+      else if(id == typeid(Symbol)) {
+        return env[((Symbol*)expr)->value];
+      }
 
       return expr;
+    }
+
+  public:
+    Expression* evaluate(Expression* expr) {
+      return eval_expr(expr);
     }
   };
 }
@@ -276,8 +290,9 @@ int main() {
   Lisp::Parser parser;
   auto exprs = parser.parse(code);
 
+  Lisp::Evaluator evaluator;
   for(size_t i = 0 ; i < exprs.size() ; i++) {
-    exprs[i] = Lisp::Evaluator::evaluate(exprs[i]);
+    exprs[i] = evaluator.evaluate(exprs[i]);
   }
 
   // fake GC
