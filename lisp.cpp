@@ -202,7 +202,7 @@ namespace Lisp {
     }
 
     bool is_symbol(char c) {
-      return isalnum(c) && isalpha(c);
+      return !isspace(c);
     }
 
     bool is_number(char c) {
@@ -294,6 +294,13 @@ namespace Lisp {
           auto val = evaluate(call_fun->args[0]);
           if(typeid(*val) != typeid(List)) return new T();
           else return new Nil();
+        }
+        else if(name == "+") {
+          Integer* sum = new Integer(0);
+          for(auto arg : call_fun->args) {
+            sum->value += ((Integer*)evaluate(arg))->value;
+          }
+          return sum;
         }
         else if(name == "list") {
           auto args = call_fun->args;
