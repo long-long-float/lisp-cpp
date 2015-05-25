@@ -6,6 +6,7 @@
 #include <map>
 #include <typeinfo>
 #include <stdexcept>
+#include <cstdlib>
 #include <ctype.h>
 
 #define PRINT_LINE (std::cout << "line: " << __LINE__ << std::endl)
@@ -15,6 +16,7 @@ enum TokenType{
   TOKEN_BRACKET_CLOSE,
   TOKEN_SYMBOL,
   TOKEN_STRING,
+  TOKEN_INTEGER,
   TOKEN_NIL,
 };
 
@@ -79,6 +81,16 @@ namespace Lisp {
     String(std::string &avalue) : value(avalue) {}
 
     std::string lisp_str() { return '"' + value + '"'; }
+  };
+
+  class Integer : public Expression {
+  public:
+    unsigned long value;
+
+    Integer(std::string &avalue)  : value(std::atol(avalue.c_str())) {}
+    Integer(unsigned long avalue) : value(avalue) {}
+
+    std::string lisp_str() { return std::to_string(value); }
   };
 
   class Symbol : public Expression {
@@ -181,6 +193,8 @@ namespace Lisp {
           return new Nil();
         case TOKEN_SYMBOL:
           return new Symbol(cur_token()->value);
+        case TOKEN_INTEGER:
+          return new Integer(cur_token()->value);
         default:
           throw std::logic_error("unknown token: " + std::to_string(cur_token()->type));
           return nullptr;
@@ -189,6 +203,10 @@ namespace Lisp {
 
     bool is_symbol(char c) {
       return isalnum(c) && isalpha(c);
+    }
+
+    bool is_number(char c) {
+      return isdigit(c);
     }
 
     std::list<Token*> tokenize(const std::string &code) {
@@ -215,6 +233,18 @@ namespace Lisp {
         }
         else if(ch == ' ' || ch == '\n')
           ;//skip
+        else if(is_number(ch)) {
+          size_t token_len = 0;
+          while(is_number(code[i + token_len])) {
+            token_len++;
+            // TODO: raise an error
+          }
+
+          std::string token_val = code.substr(i, token_len);
+          tokens.push_back(new Token(TOKEN_INTEGER, token_val));
+
+          i += token_len;
+        }
         else { // symbol
           size_t token_len = 0;
           while(is_symbol(code[i + token_len])) {
