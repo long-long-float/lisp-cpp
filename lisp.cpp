@@ -260,6 +260,11 @@ namespace Lisp {
           env[((Symbol*)call_fun->args[0])->value] = call_fun->args[1];
           return new Nil();
         }
+        else if(name == "atom") {
+          auto val = evaluate(call_fun->args[0]);
+          if(typeid(*val) != typeid(List)) return new T();
+          else return new Nil();
+        }
         else if(name == "list") {
           auto args = call_fun->args;
           for(size_t i = 0 ; i < args.size() ; i++) {
