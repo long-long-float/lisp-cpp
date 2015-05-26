@@ -121,9 +121,11 @@ namespace Lisp {
     std::vector<Expression*> parse(const std::string &code) {
       tokens = tokenize(code);
 
-      /*for(auto tok : tokens) {
-        std::cout << tok->str() << std::endl;
-      }*/
+      if(false) { // NOTE: for debug
+        for(auto tok : tokens) {
+          std::cout << tok->str() << std::endl;
+        }
+      }
 
       std::vector<Expression*> exprs;
       while(!tokens.empty()) {
