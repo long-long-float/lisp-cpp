@@ -56,24 +56,6 @@ namespace Lisp {
     virtual std::string lisp_str() = 0;
   };
 
-  class CallFunction : public Expression {
-  public:
-    std::string name;
-    std::vector<Expression*> args;
-
-    CallFunction(std::string aname, std::vector<Expression*> &aargs) : name(aname), args(aargs) {}
-
-    std::string lisp_str() {
-      std::stringstream ss;
-      ss << "(" << name << " ";
-      for(Expression* arg : args) {
-        ss << arg->lisp_str() << " ";
-      }
-      ss << ")";
-      return ss.str();
-    }
-  };
-
   class String : public Expression {
   public:
     std::string value;
@@ -164,29 +146,26 @@ namespace Lisp {
       if(!tokens.empty()) tokens.pop_front();
     }
 
-    Expression* parse_call_fun() {
+    Expression* parse_list() {
       consume_token();
       if(cur_token()->type != TOKEN_SYMBOL) {
         //TODO: raise an error
       }
-      std::string name;
-      name = cur_token()->value;
 
-      consume_token();
-      std::vector<Expression*> args;
+      std::vector<Expression*> values;
       for(; !tokens.empty() && cur_token()->type != TOKEN_BRACKET_CLOSE ; consume_token()) {
-        args.push_back(parse_expr());
+        values.push_back(parse_expr());
       }
 
       consume_token();
 
-      return new CallFunction(name, args);
+      return new List(values);
     }
 
     Expression* parse_expr() {
       switch(cur_token()->type) {
         case TOKEN_BRACKET_OPEN:
-          return parse_call_fun();
+          return parse_list();
         case TOKEN_STRING:
           return new String(cur_token()->value);
         case TOKEN_NIL:
@@ -279,32 +258,32 @@ namespace Lisp {
 
     Expression* eval_expr(Expression* expr) {
       const std::type_info& id = typeid(*expr);
-      if(id == typeid(CallFunction)) {
-        auto call_fun = (CallFunction*)expr;
-        auto name = call_fun->name;
+      if(id == typeid(List)) {
+        auto list = (List*)expr;
+        auto name = ((Symbol*)list->values[0])->value;
         if(name == "print") {
-          std::cout << (evaluate(call_fun->args[0]))->lisp_str() << std::endl;
+          std::cout << (evaluate(list->values[1]))->lisp_str() << std::endl;
           return new Nil();
         }
         else if(name == "setq") {
-          env[((Symbol*)call_fun->args[0])->value] = call_fun->args[1];
+          env[((Symbol*)list->values[1])->value] = list->values[2];
           return new Nil();
         }
         else if(name == "atom") {
-          auto val = evaluate(call_fun->args[0]);
+          auto val = evaluate(list->values[1]);
           if(typeid(*val) != typeid(List)) return new T();
           else return new Nil();
         }
         else if(name == "+") {
           Integer* sum = new Integer(0);
-          for(auto arg : call_fun->args) {
-            sum->value += ((Integer*)evaluate(arg))->value;
+          for(size_t i = 1 ; i < list->values.size() ; i++) {
+            sum->value += ((Integer*)evaluate(list->values[i]))->value;
           }
           return sum;
         }
         else if(name == "list") {
-          auto args = call_fun->args;
-          for(size_t i = 0 ; i < args.size() ; i++) {
+          auto args = list->values;
+          for(size_t i = 1 ; i < args.size() ; i++) {
             args[i] = evaluate(args[i]);
           }
           return new List(args);
