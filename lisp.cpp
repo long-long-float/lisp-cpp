@@ -218,13 +218,15 @@ namespace Lisp {
           size_t token_len = 0;
           while(is_number(code[i + token_len])) {
             token_len++;
-            // TODO: raise an error
+            if(i + token_len >= code.size()) {
+              // TODO: raise an error
+            }
           }
 
           std::string token_val = code.substr(i, token_len);
           tokens.push_back(new Token(TOKEN_INTEGER, token_val));
 
-          i += token_len;
+          i += token_len - 1;
         }
         else { // symbol
           size_t token_len = 0;
