@@ -183,7 +183,7 @@ namespace Lisp {
     }
 
     bool is_symbol(char c) {
-      return !isspace(c);
+      return c == '!' || ('#' <= c && c <= '\'') || ('*' <= c && c <= '/') || isalpha(c);
     }
 
     bool is_number(char c) {
