@@ -155,31 +155,36 @@ namespace Lisp {
       }
 
       std::vector<Expression*> values;
-      for(; !tokens.empty() && cur_token()->type != TOKEN_BRACKET_CLOSE ; consume_token()) {
+      while(!tokens.empty() && cur_token()->type != TOKEN_BRACKET_CLOSE) {
         values.push_back(parse_expr());
       }
-
-      consume_token();
 
       return new List(values);
     }
 
     Expression* parse_expr() {
+      Expression* ret;
       switch(cur_token()->type) {
         case TOKEN_BRACKET_OPEN:
-          return parse_list();
+          ret = parse_list();
+          break;
         case TOKEN_STRING:
-          return new String(cur_token()->value);
+          ret = new String(cur_token()->value);
+          break;
         case TOKEN_NIL:
-          return new Nil();
+          ret = new Nil();
+          break;
         case TOKEN_SYMBOL:
-          return new Symbol(cur_token()->value);
+          ret = new Symbol(cur_token()->value);
+          break;
         case TOKEN_INTEGER:
-          return new Integer(cur_token()->value);
+          ret = new Integer(cur_token()->value);
+          break;
         default:
           throw std::logic_error("unknown token: " + std::to_string(cur_token()->type));
-          return nullptr;
       }
+      consume_token();
+      return ret;
     }
 
     bool is_symbol(char c) {
