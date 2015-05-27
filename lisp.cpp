@@ -275,7 +275,7 @@ namespace Lisp {
           return new Nil();
         }
         else if(name == "setq") {
-          env[((Symbol*)list->values[1])->value] = list->values[2];
+          env[regard<Symbol>(list->values[1])->value] = list->values[2];
           return new Nil();
         }
         else if(name == "atom") {
@@ -308,6 +308,13 @@ namespace Lisp {
   public:
     Expression* evaluate(Expression* expr) {
       return eval_expr(expr);
+    }
+
+    template<typename T> T* regard(Expression* expr) {
+      if(typeid(*expr) != typeid(T)) {
+        throw std::logic_error("illeagl type error: expected " + std::string(typeid(T).name()) + " but " + std::string(typeid(*expr).name()));
+      }
+      return (T*)expr;
     }
   };
 }
