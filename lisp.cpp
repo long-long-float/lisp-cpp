@@ -93,8 +93,11 @@ namespace Lisp {
     std::string lisp_str() {
       std::stringstream ss;
       ss << "(";
+      size_t i = 0;
       for(Expression* value : values) {
-        ss << value->lisp_str() << " ";
+        ss << value->lisp_str();
+        if(i < values.size() - 1) ss << " ";
+        i++;
       }
       ss << ")";
       return ss.str();
