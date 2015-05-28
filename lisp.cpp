@@ -4,6 +4,7 @@
 #include <vector>
 #include <list>
 #include <map>
+#include <stack>
 #include <typeinfo>
 #include <stdexcept>
 #include <cstdlib>
@@ -265,8 +266,10 @@ namespace Lisp {
     }
   };
 
+  typedef std::map<std::string, Expression*> Environment;
+
   class Evaluator {
-    std::map<std::string, Expression*> env;
+    std::stack<Environment> envs;
 
     Expression* eval_expr(Expression* expr) {
       const std::type_info& id = typeid(*expr);
@@ -278,7 +281,7 @@ namespace Lisp {
           return new Nil();
         }
         else if(name == "setq") {
-          env[regard<Symbol>(list->values[1])->value] = list->values[2];
+          envs.top()[regard<Symbol>(list->values[1])->value] = list->values[2];
           return new Nil();
         }
         else if(name == "atom") {
@@ -293,6 +296,21 @@ namespace Lisp {
           }
           return sum;
         }
+        else if(name == "let") {
+          Environment env;
+          auto pairs = regard<List>(list->values[1])->values;
+          for(auto pair : pairs) {
+            auto kv = regard<List>(pair);
+            env[regard<Symbol>(kv->values[0])->value] = kv->values[1];
+          }
+          envs.push(env);
+
+          Expression* ret;
+          for(size_t i = 2 ; i < list->values.size() ; i++) {
+            ret = evaluate(list->values[i]);
+          }
+          return ret;
+        }
         else if(name == "list") {
           std::vector<Expression*> values;
           for(size_t i = 1 ; i < list->values.size() ; i++) {
@@ -302,13 +320,17 @@ namespace Lisp {
         }
       }
       else if(id == typeid(Symbol)) {
-        return env[((Symbol*)expr)->value];
+        return envs.top()[((Symbol*)expr)->value];
       }
 
       return expr;
     }
 
   public:
+    Evaluator() {
+      envs.push(Environment());
+    }
+
     Expression* evaluate(Expression* expr) {
       return eval_expr(expr);
     }
