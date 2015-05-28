@@ -291,11 +291,11 @@ namespace Lisp {
           return sum;
         }
         else if(name == "list") {
-          auto args = list->values;
-          for(size_t i = 1 ; i < args.size() ; i++) {
-            args[i] = evaluate(args[i]);
+          std::vector<Expression*> values;
+          for(size_t i = 1 ; i < list->values.size() ; i++) {
+            values.push_back(evaluate(list->values[i]));
           }
-          return new List(args);
+          return new List(values);
         }
       }
       else if(id == typeid(Symbol)) {
