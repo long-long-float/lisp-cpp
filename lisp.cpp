@@ -320,7 +320,12 @@ namespace Lisp {
         }
       }
       else if(id == typeid(Symbol)) {
-        return envs.top()[((Symbol*)expr)->value];
+        auto name = (Symbol*)expr;
+        auto env = envs.top();
+        if(env.find(name->value) == env.end()) {
+          throw std::logic_error("undefined variable: " + name->value);
+        }
+        return env[name->value];
       }
 
       return expr;
