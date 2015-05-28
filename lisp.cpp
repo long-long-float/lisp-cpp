@@ -289,7 +289,7 @@ namespace Lisp {
         else if(name == "+") {
           Integer* sum = new Integer(0);
           for(size_t i = 1 ; i < list->values.size() ; i++) {
-            sum->value += ((Integer*)evaluate(list->values[i]))->value;
+            sum->value += regard<Integer>(evaluate(list->values[i]))->value;
           }
           return sum;
         }
@@ -315,7 +315,7 @@ namespace Lisp {
 
     template<typename T> T* regard(Expression* expr) {
       if(typeid(*expr) != typeid(T)) {
-        throw std::logic_error("illeagl type error: expected " + std::string(typeid(T).name()) + " but " + std::string(typeid(*expr).name()));
+        throw std::logic_error("illeagl type error: " + expr->lisp_str() + " is not " + std::string(typeid(T).name()));
       }
       return (T*)expr;
     }
