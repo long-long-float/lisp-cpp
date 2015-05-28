@@ -309,7 +309,29 @@ namespace Lisp {
           for(size_t i = 2 ; i < list->values.size() ; i++) {
             ret = evaluate(list->values[i]);
           }
+
+          envs.pop();
+
           return ret;
+        }
+        else if(name == "for") {
+          auto counter_name = regard<Symbol>(list->values[1]);
+          auto start        = regard<Integer>(evaluate(list->values[2]));
+          auto end          = regard<Integer>(evaluate(list->values[3]));
+
+          auto counter      = new Integer(start->value);
+
+          Environment env;
+          env[counter_name->value] = counter;
+          envs.push(env);
+
+          for(; counter->value < end->value ; counter->value++) {
+            evaluate(list->values[4]);
+          }
+
+          envs.pop();
+
+          return new Nil();
         }
         else if(name == "list") {
           std::vector<Expression*> values;
