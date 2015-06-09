@@ -12,6 +12,13 @@
 
 #define PRINT_LINE (std::cout << "line: " << __LINE__ << std::endl)
 
+// cons must be pure list
+#define EACH_CONS(var, init) for(Cons* var = regard<Cons>(init) ; typeid(*var) != typeid(Nil) ; var = (Cons*)regard<Cons>(var)->cdr)
+
+// for debug
+using std::cout;
+using std::endl;
+
 enum TokenType{
   TOKEN_BRACKET_OPEN,
   TOKEN_BRACKET_CLOSE,
@@ -80,29 +87,9 @@ namespace Lisp {
   public:
     std::string value;
 
-    Symbol(std::string &avalue) : value(avalue) {}
+    Symbol(std::string avalue) : value(avalue) {}
 
     std::string lisp_str() { return value; }
-  };
-
-  class List : public Expression {
-  public:
-    std::vector<Expression*> values;
-
-    List(std::vector<Expression*> &avalues) : values(avalues) {}
-
-    std::string lisp_str() {
-      std::stringstream ss;
-      ss << "(";
-      size_t i = 0;
-      for(Expression* value : values) {
-        ss << value->lisp_str();
-        if(i < values.size() - 1) ss << " ";
-        i++;
-      }
-      ss << ")";
-      return ss.str();
-    }
   };
 
   // TODO: RubyみたくExpression*に埋め込みたい
@@ -111,6 +98,61 @@ namespace Lisp {
     Nil() {}
 
     std::string lisp_str() { return "nil"; }
+  };
+
+  class Cons : public Expression {
+  public:
+    Expression *car, *cdr;
+
+    Cons(Expression* acar, Expression* acdr) : car(acar), cdr(acdr) {}
+
+    std::string lisp_str() {
+      return lisp_str_child(true);
+    }
+
+    Expression* get(size_t index) {
+      if(index == 0) return car;
+      else {
+        if(typeid(*cdr) == typeid(Cons)) {
+          return ((Cons*)cdr)->get(index - 1);
+        }
+        else {
+          //TODO: raise range error
+          return nullptr;
+        }
+      }
+    }
+
+    Cons* tail(size_t index) {
+      if(index <= 1) return (Cons*)cdr; //TODO: regard使う
+      else return (Cons*)tail(index - 1)->cdr;
+    }
+
+  private:
+    std::string lisp_str_child(bool show_bracket) {
+      std::stringstream ss;
+
+      if(show_bracket) ss << '(';
+
+      if(typeid(*car) == typeid(Cons)) {
+        ss << ((Cons*)car)->lisp_str_child(true);
+      }
+      else {
+        ss << car->lisp_str();
+      }
+
+      if(typeid(*cdr) == typeid(Cons)) {
+        ss << " " << ((Cons*)cdr)->lisp_str_child(false);
+      }
+      else if(typeid(*cdr) != typeid(Nil)){
+        ss << " . "; // ドット対
+        ss << cdr->lisp_str();
+      }
+
+      if(show_bracket) ss << ')';
+
+      return ss.str();
+    }
   };
 
   class T : public Expression {
@@ -158,12 +200,20 @@ namespace Lisp {
         //TODO: raise an error
       }
 
-      std::vector<Expression*> values;
+      auto first_cons = new Cons(new Nil(), new Nil());
+      auto cur_cons   = first_cons;
+      size_t count = 0;
       while(!tokens.empty() && cur_token()->type != TOKEN_BRACKET_CLOSE) {
-        values.push_back(parse_expr());
+        if(count != 0) {
+          cur_cons->cdr = new Cons(new Nil(), new Nil());
+          cur_cons = (Cons*)cur_cons->cdr;
+        }
+        cur_cons->car = parse_expr();
+
+        count++;
       }
 
-      return new List(values);
+      return first_cons;
     }
 
     Expression* parse_expr() {
@@ -273,41 +323,42 @@ namespace Lisp {
 
     Expression* eval_expr(Expression* expr) {
       const std::type_info& id = typeid(*expr);
-      if(id == typeid(List)) {
-        auto list = (List*)expr;
-        auto name = ((Symbol*)list->values[0])->value;
+      if(id == typeid(Cons)) {
+        auto list = (Cons*)expr;
+        auto name = regard<Symbol>(list->get(0))->value;
         if(name == "print") {
-          std::cout << (evaluate(list->values[1]))->lisp_str() << std::endl;
+          std::cout << (evaluate(list->get(1)))->lisp_str() << std::endl;
           return new Nil();
         }
         else if(name == "setq") {
-          envs.top()[regard<Symbol>(list->values[1])->value] = list->values[2];
+          envs.top()[regard<Symbol>(list->get(1))->value] = list->get(2);
           return new Nil();
         }
         else if(name == "atom") {
-          auto val = evaluate(list->values[1]);
-          if(typeid(*val) != typeid(List)) return new T();
+          auto val = evaluate(list->get(1));
+          if(typeid(*val) != typeid(Cons)) return new T();
           else return new Nil();
         }
         else if(name == "+") {
           Integer* sum = new Integer(0);
-          for(size_t i = 1 ; i < list->values.size() ; i++) {
-            sum->value += regard<Integer>(evaluate(list->values[i]))->value;
+
+          EACH_CONS(cc, list->cdr) {
+            sum->value += regard<Integer>(evaluate(cc->car))->value;
           }
           return sum;
         }
         else if(name == "let") {
           Environment env;
-          auto pairs = regard<List>(list->values[1])->values;
-          for(auto pair : pairs) {
-            auto kv = regard<List>(pair);
-            env[regard<Symbol>(kv->values[0])->value] = kv->values[1];
+          auto pairs = regard<Cons>(list->get(1));
+          EACH_CONS(cc, pairs) {
+            auto kv = regard<Cons>(cc->car);
+            env[regard<Symbol>(kv->get(0))->value] = kv->get(1);
           }
           envs.push(env);
 
           Expression* ret;
-          for(size_t i = 2 ; i < list->values.size() ; i++) {
-            ret = evaluate(list->values[i]);
+          EACH_CONS(cc, list->tail(2)) {
+            ret = evaluate(cc->car);
           }
 
           envs.pop();
@@ -315,9 +366,10 @@ namespace Lisp {
           return ret;
         }
         else if(name == "for") {
-          auto counter_name = regard<Symbol>(list->values[1]);
-          auto start        = regard<Integer>(evaluate(list->values[2]));
-          auto end          = regard<Integer>(evaluate(list->values[3]));
+          auto counter_name = regard<Symbol>(list->get(1));
+          auto start        = regard<Integer>(evaluate(list->get(2)));
+          auto end          = regard<Integer>(evaluate(list->get(3)));
+          auto body         = list->get(4);
 
           auto counter      = new Integer(start->value);
 
@@ -326,19 +378,24 @@ namespace Lisp {
           envs.push(env);
 
           for(; counter->value < end->value ; counter->value++) {
-            evaluate(list->values[4]);
+            evaluate(body);
           }
 
           envs.pop();
 
           return new Nil();
         }
+        else if(name == "cons") {
+          auto car = evaluate(list->get(1));
+          auto cdr = evaluate(list->get(2));
+
+          return new Cons(car, cdr);
+        }
         else if(name == "list") {
-          std::vector<Expression*> values;
-          for(size_t i = 1 ; i < list->values.size() ; i++) {
-            values.push_back(evaluate(list->values[i]));
+          EACH_CONS(cc, list->cdr) {
+            //TODO: 評価する
           }
-          return new List(values);
+          return list->cdr;
         }
       }
       else if(id == typeid(Symbol)) {
