@@ -330,6 +330,14 @@ namespace Lisp {
           std::cout << (evaluate(list->get(1)))->lisp_str() << std::endl;
           return new Nil();
         }
+        else if(name == "type") {
+          return new Symbol(std::string(typeid(*list->get(1)).name()));
+        }
+        else if(name == "tail") {
+          auto arg0  = regard<Cons>(evaluate(list->get(1)));
+          auto index = regard<Integer>(evaluate(list->get(2)));
+          return arg0->tail(index->value);
+        }
         else if(name == "setq") {
           envs.top()[regard<Symbol>(list->get(1))->value] = list->get(2);
           return new Nil();
