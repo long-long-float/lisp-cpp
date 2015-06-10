@@ -320,7 +320,7 @@ namespace Lisp {
   typedef std::map<std::string, Expression*> Environment;
 
   class Evaluator {
-    std::stack<Environment> envs;
+    std::list<Environment> envs;
 
     Expression* eval_expr(Expression* expr) {
       const std::type_info& id = typeid(*expr);
@@ -340,7 +340,7 @@ namespace Lisp {
           return arg0->tail(index->value);
         }
         else if(name == "setq") {
-          envs.top()[regard<Symbol>(list->get(1))->value] = list->get(2);
+          envs.back()[regard<Symbol>(list->get(1))->value] = list->get(2);
           return new Nil();
         }
         else if(name == "atom") {
@@ -370,14 +370,14 @@ namespace Lisp {
             auto kv = regard<Cons>(cc->car);
             env[regard<Symbol>(kv->get(0))->value] = kv->get(1);
           }
-          envs.push(env);
+          envs.push_back(env);
 
           Expression* ret;
           EACH_CONS(cc, list->tail(2)) {
             ret = evaluate(cc->car);
           }
 
-          envs.pop();
+          envs.pop_back();
 
           return ret;
         }
@@ -401,13 +401,13 @@ namespace Lisp {
 
           Environment env;
           env[counter_name->value] = counter;
-          envs.push(env);
+          envs.push_back(env);
 
           for(; counter->value < end->value ; counter->value++) {
             evaluate(body);
           }
 
-          envs.pop();
+          envs.pop_back();
 
           return new Nil();
         }
@@ -429,11 +429,13 @@ namespace Lisp {
       }
       else if(id == typeid(Symbol)) {
         auto name = (Symbol*)expr;
-        auto env = envs.top();
-        if(env.find(name->value) == env.end()) {
-          throw std::logic_error("undefined variable: " + name->value);
+        auto env = envs.back();
+        for(auto env = envs.rbegin() ; env != envs.rend() ; env++) {
+          if(env->find(name->value) != env->end()) {
+            return (*env)[name->value];
+          }
         }
-        return env[name->value];
+        throw std::logic_error("undefined variable: " + name->value);
       }
 
       return expr;
@@ -441,7 +443,7 @@ namespace Lisp {
 
   public:
     Evaluator() {
-      envs.push(Environment());
+      envs.push_back(Environment());
     }
 
     Expression* evaluate(Expression* expr) {
