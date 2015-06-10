@@ -405,6 +405,9 @@ namespace Lisp {
           }
           return list->cdr;
         }
+        else {
+          throw std::logic_error("undefined function: " + name);
+        }
       }
       else if(id == typeid(Symbol)) {
         auto name = (Symbol*)expr;
