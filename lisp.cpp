@@ -26,6 +26,7 @@ enum TokenType{
   TOKEN_STRING,
   TOKEN_INTEGER,
   TOKEN_NIL,
+  TOKEN_T,
 };
 
 class Token {
@@ -228,6 +229,9 @@ namespace Lisp {
         case TOKEN_NIL:
           ret = new Nil();
           break;
+        case TOKEN_T:
+          ret = new T();
+          break;
         case TOKEN_SYMBOL:
           ret = new Symbol(cur_token()->value);
           break;
@@ -301,6 +305,8 @@ namespace Lisp {
           TokenType token_type;
           if(token_val == "nil")
             token_type = TOKEN_NIL;
+          else if(token_val == "t")
+            token_type = TOKEN_T;
           else
             token_type = TOKEN_SYMBOL;
 
