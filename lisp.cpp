@@ -242,7 +242,8 @@ namespace Lisp {
     }
 
     bool is_symbol(char c) {
-      return c == '!' || ('#' <= c && c <= '\'') || ('*' <= c && c <= '/') || isalpha(c);
+      return c == '!' || ('#' <= c && c <= '\'') || ('*' <= c && c <= '/') ||
+            ('<' <= c && c <= '@') || isalpha(c);
     }
 
     bool is_number(char c) {
@@ -354,6 +355,13 @@ namespace Lisp {
             sum->value += regard<Integer>(evaluate(cc->car))->value;
           }
           return sum;
+        }
+        else if(name == "=") {
+          // TODO: 他の型にも対応させる
+          auto x = regard<Integer>(list->get(1));
+          auto y = regard<Integer>(list->get(2));
+
+          return (x->value == y->value ? (Expression*)new T() : (Expression*)new Nil());
         }
         else if(name == "let") {
           Environment env;
