@@ -369,6 +369,12 @@ namespace Lisp {
 
           return (x->value == y->value ? (Expression*)new T() : (Expression*)new Nil());
         }
+        else if(name == "mod") {
+          auto x = regard<Integer>(evaluate(list->get(1)));
+          auto y = regard<Integer>(evaluate(list->get(2)));
+
+          return new Integer(x->value % y->value);
+        }
         else if(name == "let") {
           Environment env;
           auto pairs = regard<Cons>(list->get(1));
