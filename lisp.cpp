@@ -381,6 +381,16 @@ namespace Lisp {
 
           return ret;
         }
+        else if(name == "cond") {
+          EACH_CONS(cc, list->tail(1)) {
+            auto pair = regard<Cons>(cc->get(0));
+            if(typeid(*evaluate(pair->get(0))) != typeid(Nil)) {
+              return evaluate(pair->get(1));
+            }
+          }
+
+          return new Nil();
+        }
         else if(name == "for") {
           auto counter_name = regard<Symbol>(list->get(1));
           auto start        = regard<Integer>(evaluate(list->get(2)));
