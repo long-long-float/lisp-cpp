@@ -364,8 +364,8 @@ namespace Lisp {
         }
         else if(name == "=") {
           // TODO: 他の型にも対応させる
-          auto x = regard<Integer>(list->get(1));
-          auto y = regard<Integer>(list->get(2));
+          auto x = regard<Integer>(evaluate(list->get(1)));
+          auto y = regard<Integer>(evaluate(list->get(2)));
 
           return (x->value == y->value ? (Expression*)new T() : (Expression*)new Nil());
         }
