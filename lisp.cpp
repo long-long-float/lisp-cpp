@@ -66,10 +66,17 @@ std::list<Lisp::Object*> objects;
 namespace Lisp {
   class Object {
   public:
+    bool mark_flag; // for GC
+
     Object() {
       objects.push_back(this);
     }
     virtual ~Object() {}
+
+    virtual void mark() {
+      mark_flag = true;
+      // cout << lisp_str() << "@" << this << endl;
+    }
 
     virtual std::string lisp_str() = 0;
   };
@@ -115,6 +122,11 @@ namespace Lisp {
     Object *car, *cdr;
 
     Cons(Object* acar, Object* acdr) : car(acar), cdr(acdr) {}
+
+    void mark() {
+      Object::mark();
+      car->mark(); cdr->mark();
+    }
 
     std::string lisp_str() {
       return lisp_str_child(true);
@@ -506,6 +518,13 @@ namespace Lisp {
           }
           return list->cdr;
         }
+        else if(name == "number-of-objects") {
+          return new Integer(objects.size());
+        }
+        else if(name == "gc") {
+          mark(); sweep();
+          return new Nil();
+        }
         else {
           throw std::logic_error("undefined function: " + name);
         }
@@ -531,6 +550,28 @@ namespace Lisp {
 
     Object* evaluate(Object* expr) {
       return eval_expr(expr);
+    }
+
+    void mark() {
+      auto& root = envs.front();
+      for(auto& kv : root) {
+        kv.second->mark();
+      }
+    }
+
+    void sweep() {
+      for(auto itr = objects.begin() ; itr != objects.end() ; ) {
+        auto obj = *itr;
+        if(!obj->mark_flag) {
+          delete obj;
+          itr = objects.erase(itr);
+          continue;
+        }
+        else {
+          obj->mark_flag = false;
+        }
+        itr++;
+      }
     }
 
     template<typename T> T* regard(Object* expr) {
@@ -562,7 +603,7 @@ int main() {
     evaluator.evaluate(exprs[i]->to_obj());
   }
 
-  // fake GC
+  // clean up
   for(auto expr : objects) {
     delete expr;
   }
