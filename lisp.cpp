@@ -29,6 +29,15 @@ enum TokenType{
   TOKEN_T,
 };
 
+enum ExpressionType {
+  EXPRESSION_LIST,
+  EXPRESSION_SYMBOL = TOKEN_SYMBOL,
+  EXPRESSION_STRING,
+  EXPRESSION_INTEGER,
+  EXPRESSION_NIL = TOKEN_NIL,
+  EXPRESSION_T,
+};
+
 class Token {
 public:
   TokenType type;
@@ -48,24 +57,24 @@ public:
 };
 
 namespace Lisp {
-  class Expression;
+  class Object;
 }
 
 // memory allocated exprs
-std::list<Lisp::Expression*> objects;
+std::list<Lisp::Object*> objects;
 
 namespace Lisp {
-  class Expression {
+  class Object {
   public:
-    Expression() {
+    Object() {
       objects.push_back(this);
     }
-    virtual ~Expression() {}
+    virtual ~Object() {}
 
     virtual std::string lisp_str() = 0;
   };
 
-  class String : public Expression {
+  class String : public Object {
   public:
     std::string value;
 
@@ -74,7 +83,7 @@ namespace Lisp {
     std::string lisp_str() { return '"' + value + '"'; }
   };
 
-  class Integer : public Expression {
+  class Integer : public Object {
   public:
     unsigned long value;
 
@@ -84,7 +93,7 @@ namespace Lisp {
     std::string lisp_str() { return std::to_string(value); }
   };
 
-  class Symbol : public Expression {
+  class Symbol : public Object {
   public:
     std::string value;
 
@@ -93,25 +102,25 @@ namespace Lisp {
     std::string lisp_str() { return value; }
   };
 
-  // TODO: RubyみたくExpression*に埋め込みたい
-  class Nil : public Expression {
+  // TODO: RubyみたくObject*に埋め込みたい
+  class Nil : public Object {
   public:
     Nil() {}
 
     std::string lisp_str() { return "nil"; }
   };
 
-  class Cons : public Expression {
+  class Cons : public Object {
   public:
-    Expression *car, *cdr;
+    Object *car, *cdr;
 
-    Cons(Expression* acar, Expression* acdr) : car(acar), cdr(acdr) {}
+    Cons(Object* acar, Object* acdr) : car(acar), cdr(acdr) {}
 
     std::string lisp_str() {
       return lisp_str_child(true);
     }
 
-    Expression* get(size_t index) {
+    Object* get(size_t index) {
       if(index == 0) return car;
       else {
         if(typeid(*cdr) == typeid(Cons)) {
@@ -156,11 +165,69 @@ namespace Lisp {
     }
   };
 
-  class T : public Expression {
+  class T : public Object {
   public:
     T() {}
 
     std::string lisp_str() { return "T"; }
+  };
+
+  class Expression {
+  public:
+    ExpressionType type;
+    std::string value;
+
+    Expression(ExpressionType atype) : type(atype) {}
+    Expression(ExpressionType atype, std::string avalue) : type(atype), value(avalue) {}
+
+    virtual Object* to_obj() {
+      switch(type) {
+        case EXPRESSION_LIST:
+          // this must be converted in Evaluator.evaluate
+          break;
+        case EXPRESSION_STRING:
+          return new String(value);
+        case EXPRESSION_NIL:
+          return new Nil();
+        case EXPRESSION_T:
+          return new T();
+        case EXPRESSION_SYMBOL:
+          return new Symbol(value);
+        case EXPRESSION_INTEGER:
+          return new Integer(value);
+     }
+     throw std::logic_error("unknown expression: " + std::to_string(type));
+    }
+
+    std::string str() { return std::to_string(type); }
+  };
+
+  class List : public Expression {
+  public:
+    std::vector<Expression*> values;
+
+    List() : Expression(EXPRESSION_LIST) {}
+
+    Object* to_obj() {
+      auto first_cons = new Cons(new Nil(), new Nil());
+      auto cur_cons   = first_cons;
+      size_t count = 0;
+      for(auto expr : values) {
+        if(count != 0) {
+          cur_cons->cdr = new Cons(new Nil(), new Nil());
+          cur_cons = (Cons*)cur_cons->cdr;
+        }
+        cur_cons->car = expr->to_obj();
+
+        count++;
+      }
+
+      return first_cons;
+    };
+
+    Expression* get(size_t index) {
+      return values[index];
+    }
   };
 
   class Parser {
@@ -195,12 +262,20 @@ namespace Lisp {
       if(!tokens.empty()) tokens.pop_front();
     }
 
-    Expression* parse_list() {
+    List* parse_list() {
       consume_token();
       if(cur_token()->type != TOKEN_SYMBOL) {
         //TODO: raise an error
       }
 
+      List* list = new List();
+      while(!tokens.empty() && cur_token()->type != TOKEN_BRACKET_CLOSE) {
+        list->values.push_back(parse_expr());
+      }
+
+      return list;
+
+      /*
       auto first_cons = new Cons(new Nil(), new Nil());
       auto cur_cons   = first_cons;
       size_t count = 0;
@@ -215,28 +290,24 @@ namespace Lisp {
       }
 
       return first_cons;
+      */
     }
 
     Expression* parse_expr() {
       Expression* ret;
-      switch(cur_token()->type) {
+      auto ttype = cur_token()->type;
+      switch(ttype) {
         case TOKEN_BRACKET_OPEN:
           ret = parse_list();
           break;
+        case TOKEN_SYMBOL: // == EXPRESSION_SYMBOL
         case TOKEN_STRING:
-          ret = new String(cur_token()->value);
-          break;
-        case TOKEN_NIL:
-          ret = new Nil();
-          break;
-        case TOKEN_T:
-          ret = new T();
-          break;
-        case TOKEN_SYMBOL:
-          ret = new Symbol(cur_token()->value);
-          break;
         case TOKEN_INTEGER:
-          ret = new Integer(cur_token()->value);
+          ret = new Expression((ExpressionType)ttype, cur_token()->value);
+          break;
+        case TOKEN_NIL: // == EXPRESSION_NIL
+        case TOKEN_T:
+          ret = new Expression((ExpressionType)ttype);
           break;
         default:
           throw std::logic_error("unknown token: " + std::to_string(cur_token()->type));
@@ -323,15 +394,15 @@ namespace Lisp {
     }
   };
 
-  typedef std::map<std::string, Expression*> Environment;
+  typedef std::map<std::string, Object*> Environment;
 
   class Evaluator {
     std::list<Environment> envs;
 
-    Expression* eval_expr(Expression* expr) {
-      const std::type_info& id = typeid(*expr);
+    Object* eval_expr(Object* obj) {
+      std::type_info const & id = typeid(*obj);
       if(id == typeid(Cons)) {
-        auto list = (Cons*)expr;
+        auto list = (Cons*)obj;
         auto name = regard<Symbol>(list->get(0))->value;
         if(name == "print") {
           std::cout << (evaluate(list->get(1)))->lisp_str() << std::endl;
@@ -346,7 +417,7 @@ namespace Lisp {
           return arg0->tail(index->value);
         }
         else if(name == "setq") {
-          envs.back()[regard<Symbol>(list->get(1))->value] = list->get(2);
+          envs.back()[regard<Symbol>(list->get(1))->value] = evaluate(list->get(2));
           return new Nil();
         }
         else if(name == "atom") {
@@ -367,7 +438,7 @@ namespace Lisp {
           auto x = regard<Integer>(evaluate(list->get(1)));
           auto y = regard<Integer>(evaluate(list->get(2)));
 
-          return (x->value == y->value ? (Expression*)new T() : (Expression*)new Nil());
+          return (x->value == y->value ? (Object*)new T() : (Object*)new Nil());
         }
         else if(name == "mod") {
           auto x = regard<Integer>(evaluate(list->get(1)));
@@ -384,7 +455,7 @@ namespace Lisp {
           }
           envs.push_back(env);
 
-          Expression* ret;
+          Object* ret;
           EACH_CONS(cc, list->tail(2)) {
             ret = evaluate(cc->car);
           }
@@ -440,7 +511,7 @@ namespace Lisp {
         }
       }
       else if(id == typeid(Symbol)) {
-        auto name = (Symbol*)expr;
+        auto name = (Symbol*)obj;
         auto env = envs.back();
         for(auto env = envs.rbegin() ; env != envs.rend() ; env++) {
           if(env->find(name->value) != env->end()) {
@@ -450,7 +521,7 @@ namespace Lisp {
         throw std::logic_error("undefined variable: " + name->value);
       }
 
-      return expr;
+      return obj;
     }
 
   public:
@@ -458,11 +529,11 @@ namespace Lisp {
       envs.push_back(Environment());
     }
 
-    Expression* evaluate(Expression* expr) {
+    Object* evaluate(Object* expr) {
       return eval_expr(expr);
     }
 
-    template<typename T> T* regard(Expression* expr) {
+    template<typename T> T* regard(Object* expr) {
       if(typeid(*expr) != typeid(T)) {
         throw std::logic_error("illeagl type error: " + expr->lisp_str() + " is not " + std::string(typeid(T).name()));
       }
@@ -488,7 +559,7 @@ int main() {
 
   Lisp::Evaluator evaluator;
   for(size_t i = 0 ; i < exprs.size() ; i++) {
-    exprs[i] = evaluator.evaluate(exprs[i]);
+    evaluator.evaluate(exprs[i]->to_obj());
   }
 
   // fake GC
