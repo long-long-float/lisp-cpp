@@ -38,46 +38,32 @@ enum ExpressionType {
   EXPRESSION_T,
 };
 
-class Token {
-public:
-  TokenType type;
-  std::string value;
-
-  Token(TokenType atype) : type(atype), value(std::string()) {
-  }
-
-  Token(TokenType atype, std::string avalue) : type(atype), value(avalue) {
-  }
-
-  std::string str() {
-    std::stringstream ss;
-    ss << "Token(" << type << ", " << value << ")";
-    return ss.str();
-  }
-};
-
 namespace Lisp {
-  class Object;
+  class GCObject;
 }
 
 // memory allocated exprs
-std::list<Lisp::Object*> objects;
+std::list<Lisp::GCObject*> objects;
 
 namespace Lisp {
-  class Object {
+  // GC target object
+  class GCObject {
   public:
-    bool mark_flag; // for GC
+    bool mark_flag;
 
-    Object() {
+    GCObject() {
       objects.push_back(this);
     }
-    virtual ~Object() {}
+
+    virtual ~GCObject() {}
 
     virtual void mark() {
       mark_flag = true;
-      // cout << lisp_str() << "@" << this << endl;
     }
+  };
 
+  class Object : public GCObject {
+  public:
     virtual std::string lisp_str() = 0;
   };
 
@@ -184,7 +170,25 @@ namespace Lisp {
     std::string lisp_str() { return "T"; }
   };
 
-  class Expression {
+  class Token : public GCObject {
+  public:
+    TokenType type;
+    std::string value;
+
+    Token(TokenType atype) : type(atype), value(std::string()) {
+    }
+
+    Token(TokenType atype, std::string avalue) : type(atype), value(avalue) {
+    }
+
+    std::string str() {
+      std::stringstream ss;
+      ss << "Token(" << type << ", " << value << ")";
+      return ss.str();
+    }
+  };
+
+  class Expression : public GCObject {
   public:
     ExpressionType type;
     std::string value;
@@ -268,9 +272,6 @@ namespace Lisp {
     }
 
     void consume_token() {
-      auto ctoken = cur_token();
-      if(ctoken) delete ctoken;
-
       if(!tokens.empty()) tokens.pop_front();
     }
 
