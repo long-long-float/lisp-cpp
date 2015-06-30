@@ -170,6 +170,19 @@ namespace Lisp {
     std::string lisp_str() { return "T"; }
   };
 
+  class Lambda : public Object {
+  public:
+    Cons *args, *body;
+
+    Lambda(Cons *aargs, Cons *abody) : args(aargs), body(abody) {}
+
+    std::string lisp_str() {
+      std::stringstream ss;
+      ss << "(lambda " << args->lisp_str() << " " << body->lisp_str() << ")";
+      return ss.str();
+    }
+  };
+
   class Token : public GCObject {
   public:
     TokenType type;
@@ -477,6 +490,9 @@ namespace Lisp {
 
           return ret;
         }
+        else if(name == "lambda") {
+          return new Lambda(regard<Cons>(list->get(1)), list->tail(2));
+        }
         else if(name == "cond") {
           EACH_CONS(cc, list->tail(1)) {
             auto pair = regard<Cons>(cc->get(0));
@@ -527,7 +543,33 @@ namespace Lisp {
           return new Nil();
         }
         else {
-          throw std::logic_error("undefined function: " + name);
+          try {
+            Lambda* lambda = regard<Lambda>(evaluate(list->get(0)));
+
+            Environment env;
+            size_t index = 1;
+            EACH_CONS(cc, lambda->args) {
+              auto name = regard<Symbol>(cc->car)->value;
+              env[name] = evaluate(list->get(index));
+
+              index++;
+            }
+
+            envs.push_back(env);
+
+            Object* ret;
+            EACH_CONS(cc, lambda->body) {
+              ret = evaluate(cc->car);
+            }
+
+            envs.pop_back();
+
+            return ret;
+          }
+          catch (const std::logic_error &e) {
+            // first element isn't lambda
+            throw std::logic_error("undefined function: " + name);
+          }
         }
       }
       else if(id == typeid(Symbol)) {
