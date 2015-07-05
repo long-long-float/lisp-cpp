@@ -356,7 +356,12 @@ namespace Lisp {
 
       for(size_t i = 0 ; i < code.size() - 1 ; i++) { //TODO: -1を修正(EOFっぽい?)
         char ch = code[i];
-        if(ch == '(')
+        if(ch == ';') { // comment
+          while(code[i] != '\n' && i < code.size()) {
+            i++;
+          }
+        }
+        else if(ch == '(')
           tokens.push_back(new Token(TOKEN_BRACKET_OPEN));
         else if(ch == ')')
           tokens.push_back(new Token(TOKEN_BRACKET_CLOSE));
