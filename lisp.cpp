@@ -78,10 +78,10 @@ namespace Lisp {
 
   class Integer : public Object {
   public:
-    unsigned long value;
+    long value;
 
     Integer(std::string &avalue)  : value(std::atol(avalue.c_str())) {}
-    Integer(unsigned long avalue) : value(avalue) {}
+    Integer(long avalue) : value(avalue) {}
 
     std::string lisp_str() { return std::to_string(value); }
   };
@@ -380,8 +380,11 @@ namespace Lisp {
         }
         else if(ch == ' ' || ch == '\n')
           ;//skip
-        else if(is_number(ch)) {
+        else if((ch == '-' && is_number(code[i + 1])) || is_number(ch)) {
           size_t token_len = 0;
+
+          if(ch == '-') token_len++;
+
           while(is_number(code[i + token_len])) {
             token_len++;
             if(i + token_len >= code.size()) {
@@ -464,6 +467,14 @@ namespace Lisp {
           }
           return sum;
         }
+        else if(name == "-") {
+          Integer* sub = regard<Integer>(evaluate(list->get(1)));
+
+          EACH_CONS(cc, list->tail(2)) {
+            sub->value -= regard<Integer>(evaluate(cc->car))->value;
+          }
+          return sub;
+        }
         else if(name == "=") {
           // TODO: 他の型にも対応させる
           auto x = regard<Integer>(evaluate(list->get(1)));
@@ -512,7 +523,6 @@ namespace Lisp {
           auto counter_name = regard<Symbol>(list->get(1));
           auto start        = regard<Integer>(evaluate(list->get(2)));
           auto end          = regard<Integer>(evaluate(list->get(3)));
-          auto body         = list->get(4);
 
           auto counter      = new Integer(start->value);
 
@@ -521,7 +531,9 @@ namespace Lisp {
           envs.push_back(env);
 
           for(; counter->value < end->value ; counter->value++) {
-            evaluate(body);
+            EACH_CONS(cc, list->tail(4)) {
+              evaluate(cc->get(0));
+            }
           }
 
           envs.pop_back();
