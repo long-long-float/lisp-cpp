@@ -645,10 +645,14 @@ int main() {
 
   Lisp::Parser parser;
   auto exprs = parser.parse(code);
+  vector<Lisp::Object*> exprs2(exprs.size());
+  for(size_t i = 0 ; i < exprs.size() ; i++) {
+    exprs2[i] = exprs[i]->to_obj();
+  }
 
   Lisp::Evaluator evaluator;
   for(size_t i = 0 ; i < exprs.size() ; i++) {
-    evaluator.evaluate(exprs[i]->to_obj());
+    evaluator.evaluate(exprs2[i]);
   }
 
   // clean up
