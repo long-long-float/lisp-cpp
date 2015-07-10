@@ -497,8 +497,9 @@ namespace Lisp {
           return arg0->tail(index->value);
         }
         else if(name == "setq") {
-          cur_env->set(regard<Symbol>(list->get(1))->value, evaluate(list->get(2)));
-          return new Nil();
+          auto val = evaluate(list->get(2));
+          cur_env->set(regard<Symbol>(list->get(1))->value, val);
+          return val;
         }
         else if(name == "defun") {
           cur_env->set(regard<Symbol>(list->get(1))->value,
