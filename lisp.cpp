@@ -365,23 +365,6 @@ namespace Lisp {
       }
 
       return list;
-
-      /*
-      auto first_cons = new Cons(new Nil(), new Nil());
-      auto cur_cons   = first_cons;
-      size_t count = 0;
-      while(!tokens.empty() && cur_token()->type != TOKEN_BRACKET_CLOSE) {
-        if(count != 0) {
-          cur_cons->cdr = new Cons(new Nil(), new Nil());
-          cur_cons = (Cons*)cur_cons->cdr;
-        }
-        cur_cons->car = parse_expr();
-
-        count++;
-      }
-
-      return first_cons;
-      */
     }
 
     Expression* parse_expr() {
