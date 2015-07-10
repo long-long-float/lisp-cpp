@@ -615,6 +615,7 @@ namespace Lisp {
             Environment *env = new Environment();
             size_t index = 1;
             EACH_CONS(cc, lambda->args) {
+              if(typeid(*cc->car) == typeid(Nil)) break; //TODO なんとかする
               auto name = regard<Symbol>(cc->car)->value;
               env->set(name, evaluate(list->get(index)));
 
