@@ -526,12 +526,26 @@ namespace Lisp {
           }
           return sub;
         }
+        else if(name == "*") {
+          Integer* prod = new Integer(1);
+
+          EACH_CONS(cc, list->cdr) {
+            prod->value *= regard<Integer>(evaluate(cc->car))->value;
+          }
+          return prod;
+        }
         else if(name == "=") {
           // TODO: 他の型にも対応させる
           auto x = regard<Integer>(evaluate(list->get(1)));
           auto y = regard<Integer>(evaluate(list->get(2)));
 
           return (x->value == y->value ? (Object*)new T() : (Object*)new Nil());
+        }
+        else if(name == ">") {
+          auto x = regard<Integer>(evaluate(list->get(1)));
+          auto y = regard<Integer>(evaluate(list->get(2)));
+
+          return (x->value > y->value ? (Object*)new T() : (Object*)new Nil());
         }
         else if(name == "mod") {
           auto x = regard<Integer>(evaluate(list->get(1)));
