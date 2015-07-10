@@ -356,7 +356,11 @@ namespace Lisp {
       }
 
       List* list = new List();
-      while(!tokens.empty() && cur_token()->type != TOKEN_BRACKET_CLOSE) {
+      while(true) {
+        if(tokens.empty()) {
+          throw std::logic_error("unexpected end of code : expected ')'");
+        }
+        if(cur_token()->type == TOKEN_BRACKET_CLOSE) break;
         list->values.push_back(parse_expr());
       }
 
