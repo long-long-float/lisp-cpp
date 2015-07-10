@@ -300,7 +300,7 @@ namespace Lisp {
       for(auto& kv : locals) {
         kv.second->mark();
       }
-      child && child->mark();
+      if(child) child->mark();
     }
   };
 
