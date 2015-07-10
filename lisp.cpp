@@ -259,6 +259,51 @@ namespace Lisp {
     }
   };
 
+  class Environment : public GCObject {
+    typedef std::string key;
+
+    std::map<key, Object*> locals;
+
+    Environment *parent, *child;
+
+    bool exists_local(key &name) {
+      return locals.find(name) != locals.end();
+    }
+  public:
+    Environment() : parent(nullptr), child(nullptr) {}
+
+    void set(key &name, Object* val) {
+      if(!exists_local(name) && parent) parent->set(name, val);
+      else locals[name] = val;
+    }
+
+    Object* get(key &name) {
+      if(exists_local(name)) {
+        return locals[name];
+      }
+      return parent ? parent->get(name) : nullptr;
+    }
+
+    Environment* down_env(Environment *new_env) {
+      child = new_env;
+      new_env->parent = this;
+      return new_env;
+    }
+
+    Environment* up_env() {
+      auto parent_env = parent;
+      parent_env->child = nullptr;
+      return parent_env;
+    }
+
+    void mark() {
+      for(auto& kv : locals) {
+        kv.second->mark();
+      }
+      child && child->mark();
+    }
+  };
+
   class Parser {
   public:
     std::vector<Expression*> parse(const std::string &code) {
@@ -428,10 +473,8 @@ namespace Lisp {
     }
   };
 
-  typedef std::map<std::string, Object*> Environment;
-
   class Evaluator {
-    std::list<Environment> envs;
+    Environment *root_env, *cur_env;
 
     Object* eval_expr(Object* obj) {
       std::type_info const & id = typeid(*obj);
@@ -451,7 +494,7 @@ namespace Lisp {
           return arg0->tail(index->value);
         }
         else if(name == "setq") {
-          envs.back()[regard<Symbol>(list->get(1))->value] = evaluate(list->get(2));
+          cur_env->set(regard<Symbol>(list->get(1))->value, evaluate(list->get(2)));
           return new Nil();
         }
         else if(name == "atom") {
@@ -489,20 +532,20 @@ namespace Lisp {
           return new Integer(x->value % y->value);
         }
         else if(name == "let") {
-          Environment env;
+          Environment* env = new Environment();
           auto pairs = regard<Cons>(list->get(1));
           EACH_CONS(cc, pairs) {
             auto kv = regard<Cons>(cc->car);
-            env[regard<Symbol>(kv->get(0))->value] = kv->get(1);
+            env->set(regard<Symbol>(kv->get(0))->value, kv->get(1));
           }
-          envs.push_back(env);
+          cur_env = cur_env->down_env(env);
 
           Object* ret;
           EACH_CONS(cc, list->tail(2)) {
             ret = evaluate(cc->car);
           }
 
-          envs.pop_back();
+          cur_env = cur_env->up_env();
 
           return ret;
         }
@@ -526,9 +569,10 @@ namespace Lisp {
 
           auto counter      = new Integer(start->value);
 
-          Environment env;
-          env[counter_name->value] = counter;
-          envs.push_back(env);
+          Environment *env = new Environment();
+          env->set(counter_name->value, counter);
+
+          cur_env = cur_env->down_env(env);
 
           for(; counter->value < end->value ; counter->value++) {
             EACH_CONS(cc, list->tail(4)) {
@@ -536,7 +580,7 @@ namespace Lisp {
             }
           }
 
-          envs.pop_back();
+          cur_env = cur_env->up_env();
 
           return new Nil();
         }
@@ -563,24 +607,23 @@ namespace Lisp {
           try {
             Lambda* lambda = regard<Lambda>(evaluate(list->get(0)));
 
-            Environment env;
+            Environment *env = new Environment();
             size_t index = 1;
             EACH_CONS(cc, lambda->args) {
               auto name = regard<Symbol>(cc->car)->value;
-              env[name] = evaluate(list->get(index));
+              env->set(name, evaluate(list->get(index)));
 
               index++;
             }
 
-            envs.push_back(env);
+            cur_env = cur_env->down_env(env);
 
             Object* ret;
             EACH_CONS(cc, lambda->body) {
               ret = evaluate(cc->car);
             }
 
-            envs.pop_back();
-
+            cur_env = cur_env->up_env();
             return ret;
           }
           catch (const std::logic_error &e) {
@@ -591,12 +634,9 @@ namespace Lisp {
       }
       else if(id == typeid(Symbol)) {
         auto name = (Symbol*)obj;
-        auto env = envs.back();
-        for(auto env = envs.rbegin() ; env != envs.rend() ; env++) {
-          if(env->find(name->value) != env->end()) {
-            return (*env)[name->value];
-          }
-        }
+        auto val = cur_env->get(name->value);
+        if(val != nullptr) return val;
+
         throw std::logic_error("undefined variable: " + name->value);
       }
 
@@ -605,7 +645,7 @@ namespace Lisp {
 
   public:
     Evaluator() {
-      envs.push_back(Environment());
+      root_env = cur_env = new Environment();
     }
 
     Object* evaluate(Object* expr) {
@@ -613,10 +653,7 @@ namespace Lisp {
     }
 
     void mark() {
-      auto& root = envs.front();
-      for(auto& kv : root) {
-        kv.second->mark();
-      }
+      root_env->mark();
     }
 
     void sweep() {
