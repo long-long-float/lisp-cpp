@@ -304,6 +304,22 @@ namespace Lisp {
     }
   };
 
+  class Error : public std::logic_error {
+  public:
+    Error(std::string msg) : std::logic_error(msg) {}
+  };
+
+  class NameError : public Error {
+  public:
+    NameError(std::string name) : Error("undefined local variable " + name) {}
+  };
+
+  class TypeError : public Error  {
+  public:
+    TypeError(Object* obj, std::string expected_type) :
+      Error(obj->lisp_str() + " is not " + expected_type) {}
+  };
+
   class Parser {
   public:
     std::vector<Expression*> parse(const std::string &code) {
@@ -632,7 +648,7 @@ namespace Lisp {
             cur_env = cur_env->up_env();
             return ret;
           }
-          catch (const std::logic_error &e) {
+          catch (const TypeError &e) {
             // first element isn't lambda
             throw std::logic_error("undefined function: " + name);
           }
@@ -643,7 +659,7 @@ namespace Lisp {
         auto val = cur_env->get(name->value);
         if(val != nullptr) return val;
 
-        throw std::logic_error("undefined variable: " + name->value);
+        throw NameError(name->value);
       }
 
       return obj;
@@ -679,7 +695,7 @@ namespace Lisp {
 
     template<typename T> T* regard(Object* expr) {
       if(typeid(*expr) != typeid(T)) {
-        throw std::logic_error("illeagl type error: " + expr->lisp_str() + " is not " + std::string(typeid(T).name()));
+        throw TypeError(expr, std::string(typeid(T).name()));
       }
       return (T*)expr;
     }
