@@ -269,11 +269,14 @@ namespace Lisp {
     bool exists_local(key &name) {
       return locals.find(name) != locals.end();
     }
+    bool exists(key &name) {
+      return exists_local(name) || (parent && parent->exists(name));
+    }
   public:
     Environment() : parent(nullptr), child(nullptr) {}
 
     void set(key &name, Object* val) {
-      if(!exists_local(name) && parent) parent->set(name, val);
+      if(exists(name)) parent->set(name, val);
       else locals[name] = val;
     }
 
