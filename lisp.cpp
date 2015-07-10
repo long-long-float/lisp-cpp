@@ -497,6 +497,11 @@ namespace Lisp {
           cur_env->set(regard<Symbol>(list->get(1))->value, evaluate(list->get(2)));
           return new Nil();
         }
+        else if(name == "defun") {
+          cur_env->set(regard<Symbol>(list->get(1))->value,
+            new Lambda(regard<Cons>(list->get(2)), list->tail(3)));
+          return new Nil();
+        }
         else if(name == "atom") {
           auto val = evaluate(list->get(1));
           if(typeid(*val) != typeid(Cons)) return new T();
