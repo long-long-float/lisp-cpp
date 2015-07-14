@@ -176,7 +176,7 @@ namespace Lisp {
     std::map<key, Object*> locals;
 
     Environment *parent, *child;
-    Environment *lexical_parent, *lexical_child;
+    Environment *lexical_parent;
 
     bool exists_local(key &name) {
       return locals.find(name) != locals.end();
@@ -193,8 +193,7 @@ namespace Lisp {
     }
   public:
 
-    Environment() : parent(nullptr), child(nullptr),
-                    lexical_parent(nullptr), lexical_child(nullptr) {}
+    Environment() : parent(nullptr), child(nullptr), lexical_parent(nullptr) {}
 
     void set(key &name, Object* val) {
       auto env = get_env_by_name(name);
@@ -222,7 +221,6 @@ namespace Lisp {
 
     void set_lexical_parent(Environment *alexical_parent) {
       lexical_parent = alexical_parent;
-      lexical_parent->lexical_child = this;
     }
 
     void mark() {
