@@ -170,16 +170,92 @@ namespace Lisp {
     std::string lisp_str() { return "T"; }
   };
 
+  class Environment : public GCObject {
+    typedef std::string key;
+
+    std::map<key, Object*> locals;
+
+    Environment *parent, *child;
+    Environment *lexical_parent, *lexical_child;
+
+    bool exists_local(key &name) {
+      return locals.find(name) != locals.end();
+    }
+
+    Environment* get_env_by_name(key &name) {
+      if(exists_local(name)) return this;
+      else {
+        Environment* ret;
+        if(lexical_parent && (ret = lexical_parent->get_env_by_name(name))) return ret;
+        if(parent && (ret = parent->get_env_by_name(name))) return ret;
+        return nullptr;
+      }
+    }
+  public:
+
+    Environment() : parent(nullptr), child(nullptr),
+                    lexical_parent(nullptr), lexical_child(nullptr) {}
+
+    void set(key &name, Object* val) {
+      auto env = get_env_by_name(name);
+      if(env) env->locals[name] = val;
+      else locals[name] = val;
+    }
+
+    Object* get(key &name) {
+      auto env = get_env_by_name(name);
+      if(env) return env->locals[name];
+      return nullptr;
+    }
+
+    Environment* down_env(Environment *new_env) {
+      child = new_env;
+      new_env->parent = this;
+      return new_env;
+    }
+
+    Environment* up_env() {
+      auto parent_env = parent;
+      parent_env->child = nullptr;
+      return parent_env;
+    }
+
+    void set_lexical_parent(Environment *alexical_parent) {
+      lexical_parent = alexical_parent;
+      lexical_parent->lexical_child = this;
+    }
+
+    void mark() {
+      if(mark_flag) return;
+      GCObject::mark();
+
+      for(auto& kv : locals) {
+        kv.second->mark();
+      }
+      if(child) child->mark();
+    }
+  };
+
   class Lambda : public Object {
   public:
     Cons *args, *body;
+    Environment *lexical_parent;
 
-    Lambda(Cons *aargs, Cons *abody) : args(aargs), body(abody) {}
+    Lambda(Cons *aargs, Cons *abody, Environment* alexical_parent)
+      : args(aargs), body(abody), lexical_parent(alexical_parent) {}
 
     std::string lisp_str() {
       std::stringstream ss;
       ss << "(lambda " << args->lisp_str() << " " << body->lisp_str() << ")";
       return ss.str();
+    }
+
+    void mark() {
+      GCObject::mark();
+
+      args->mark();
+      body->mark();
+      if(lexical_parent) lexical_parent->mark();
     }
   };
 
@@ -256,54 +332,6 @@ namespace Lisp {
 
     Expression* get(size_t index) {
       return values[index];
-    }
-  };
-
-  class Environment : public GCObject {
-    typedef std::string key;
-
-    std::map<key, Object*> locals;
-
-    Environment *parent, *child;
-
-    bool exists_local(key &name) {
-      return locals.find(name) != locals.end();
-    }
-    bool exists(key &name) {
-      return exists_local(name) || (parent && parent->exists(name));
-    }
-  public:
-    Environment() : parent(nullptr), child(nullptr) {}
-
-    void set(key &name, Object* val) {
-      if(exists(name)) parent->set(name, val);
-      else locals[name] = val;
-    }
-
-    Object* get(key &name) {
-      if(exists_local(name)) {
-        return locals[name];
-      }
-      return parent ? parent->get(name) : nullptr;
-    }
-
-    Environment* down_env(Environment *new_env) {
-      child = new_env;
-      new_env->parent = this;
-      return new_env;
-    }
-
-    Environment* up_env() {
-      auto parent_env = parent;
-      parent_env->child = nullptr;
-      return parent_env;
-    }
-
-    void mark() {
-      for(auto& kv : locals) {
-        kv.second->mark();
-      }
-      if(child) child->mark();
     }
   };
 
@@ -506,7 +534,7 @@ namespace Lisp {
         }
         else if(name == "defun") {
           cur_env->set(regard<Symbol>(list->get(1))->value,
-            new Lambda(regard<Cons>(list->get(2)), list->tail(3)));
+            new Lambda(regard<Cons>(list->get(2)), list->tail(3), cur_env));
           return new Nil();
         }
         else if(name == "atom") {
@@ -576,7 +604,7 @@ namespace Lisp {
           return ret;
         }
         else if(name == "lambda") {
-          return new Lambda(regard<Cons>(list->get(1)), list->tail(2));
+          return new Lambda(regard<Cons>(list->get(1)), list->tail(2), cur_env);
         }
         else if(name == "cond") {
           EACH_CONS(cc, list->tail(1)) {
@@ -626,7 +654,8 @@ namespace Lisp {
           return new Integer(objects.size());
         }
         else if(name == "gc") {
-          mark(); sweep();
+          mark();
+          sweep();
           return new Nil();
         }
         else {
@@ -642,6 +671,7 @@ namespace Lisp {
 
               index++;
             }
+            env->set_lexical_parent(lambda->lexical_parent);
 
             cur_env = cur_env->down_env(env);
 
