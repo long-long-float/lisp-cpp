@@ -131,6 +131,15 @@ namespace Lisp {
       }
     }
 
+    int find(Object *item) {
+      int index = 0;
+      for(Cons* cc = this ; typeid(*cc) != typeid(Nil) ; cc = (Cons*)cc->cdr) {
+        if(cc->car->lisp_str() == item->lisp_str()) return index;
+        index++;
+      }
+      return -1;
+    }
+
     Cons* tail(size_t index) {
       if(index <= 1) return (Cons*)cdr; //TODO: regard使う
       else return (Cons*)tail(index - 1)->cdr;
@@ -256,6 +265,45 @@ namespace Lisp {
       if(lexical_parent) lexical_parent->mark();
     }
   };
+
+  class Macro : public Object {
+    Cons *args, *body;
+
+    Object* expand_rec(Cons* src_args, Object* cur_body) {
+      const std::type_info& typei = typeid(*cur_body);
+      if(typei == typeid(Symbol)) {
+        auto name = (Symbol*)cur_body;
+        auto index  = args->find(name);
+        return index != -1 ? src_args->get(index) : name;
+      }
+      else if(typei == typeid(Cons)) {
+        auto cons = (Cons*)cur_body;
+        return new Cons(expand_rec(src_args, cons->car), expand_rec(src_args, cons->cdr));
+      }
+      //TODO: 他の型にも対応
+      return cur_body;
+    }
+
+  public:
+    Macro(Cons *aargs, Cons *abody) : args(aargs), body(abody) {}
+
+    Object* expand(Cons* src_args) {
+      return expand_rec(src_args, body);
+    }
+
+    void mark() {
+      GCObject::mark();
+
+      args->mark();
+      body->mark();
+    }
+
+    std::string lisp_str() {
+      std::stringstream ss;
+      ss << "(macro " << args->lisp_str() << " " << body->lisp_str() << ")";
+      return ss.str();
+    }
+ };
 
   class Token : public GCObject {
   public:
@@ -535,6 +583,10 @@ namespace Lisp {
             new Lambda(regard<Cons>(list->get(2)), list->tail(3), cur_env));
           return new Nil();
         }
+        else if(name == "defmacro") {
+          cur_env->set(regard<Symbol>(list->get(1))->value,
+            new Macro(regard<Cons>(list->get(2)), regard<Cons>(list->get(3))));
+        }
         else if(name == "atom") {
           auto val = evaluate(list->get(1));
           if(typeid(*val) != typeid(Cons)) return new T();
@@ -657,8 +709,9 @@ namespace Lisp {
           return new Nil();
         }
         else {
-          try {
-            Lambda* lambda = regard<Lambda>(evaluate(list->get(0)));
+          auto obj = evaluate(list->get(0));
+          if(typeid(*obj) == typeid(Lambda)) {
+            Lambda* lambda = (Lambda*)obj;
 
             Environment *env = new Environment();
             size_t index = 1;
@@ -681,8 +734,13 @@ namespace Lisp {
             cur_env = cur_env->up_env();
             return ret;
           }
-          catch (const TypeError &e) {
-            // first element isn't lambda
+          else if(typeid(*obj) == typeid(Macro)) {
+            Macro* mac = (Macro*)obj;
+
+            auto expanded = mac->expand(list->tail(1));
+            return evaluate(expanded);
+          }
+          else {
             throw std::logic_error("undefined function: " + name);
           }
         }
