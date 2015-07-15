@@ -12,6 +12,8 @@
 #include <cstdlib>
 #include <ctype.h>
 
+#include <dlfcn.h>
+
 #define PRINT_LINE (std::cout << "line: " << __LINE__ << std::endl)
 
 // cons must be pure list
@@ -703,6 +705,27 @@ namespace Lisp {
         else if(name == "gc") {
           mark();
           sweep();
+          return new Nil();
+        }
+        else if(name == "require") {
+          // load dynamic module
+          auto modname = "plugin/" + regard<String>(evaluate(list->get(1)))->value;
+          auto handle = dlopen(modname.c_str(), RTLD_LAZY);
+          if(!handle) {
+            throw std::logic_error("can't load dynamic module: " + modname);
+          }
+
+          dlerror();
+
+          auto init = (void(*)(void))dlsym(handle, "slisp_init");
+
+          char *error = dlerror();
+          if(error) {
+            throw std::logic_error(error);
+          }
+
+          (*init)();
+
           return new Nil();
         }
         else {
