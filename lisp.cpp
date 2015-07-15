@@ -1,4 +1,6 @@
 #include <iostream>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -578,11 +580,6 @@ namespace Lisp {
           cur_env->set(regard<Symbol>(list->get(1))->value, val);
           return val;
         }
-        else if(name == "defun") {
-          cur_env->set(regard<Symbol>(list->get(1))->value,
-            new Lambda(regard<Cons>(list->get(2)), list->tail(3), cur_env));
-          return new Nil();
-        }
         else if(name == "defmacro") {
           cur_env->set(regard<Symbol>(list->get(1))->value,
             new Macro(regard<Cons>(list->get(2)), regard<Cons>(list->get(3))));
@@ -765,6 +762,14 @@ namespace Lisp {
       return eval_expr(expr);
     }
 
+    Object* evaluate(std::vector<Object*> exprs) {
+      Object *ret;
+      for(auto &expr : exprs) {
+        ret = evaluate(expr);
+      }
+      return ret;
+    }
+
     void mark() {
       root_env->mark();
     }
@@ -791,36 +796,46 @@ namespace Lisp {
       return (T*)expr;
     }
   };
-}
 
+  std::vector<Object*> parse(std::string &code) {
+    using namespace std;
+
+    Parser parser;
+    auto exprs = parser.parse(code);
+    vector<Object*> exprs2(exprs.size());
+    for(size_t i = 0 ; i < exprs.size() ; i++) {
+      exprs2[i] = exprs[i]->to_obj();
+    }
+
+    return exprs2;
+  }
+
+  void clean_up() {
+    for(auto obj : objects) {
+      delete obj;
+    }
+  }
+}
 
 int main() {
   using namespace std;
 
-  string code;
-  //code.reserve(1024);
-
-  char ch;
-  while((ch = cin.get()) != std::char_traits<char>::eof()) {
-    code.push_back(ch);
-  }
-
-  Lisp::Parser parser;
-  auto exprs = parser.parse(code);
-  vector<Lisp::Object*> exprs2(exprs.size());
-  for(size_t i = 0 ; i < exprs.size() ; i++) {
-    exprs2[i] = exprs[i]->to_obj();
-  }
-
   Lisp::Evaluator evaluator;
-  for(size_t i = 0 ; i < exprs.size() ; i++) {
-    evaluator.evaluate(exprs2[i]);
-  }
 
-  // clean up
-  for(auto expr : objects) {
-    delete expr;
+  // load standard module
+  ifstream stdmod_ifs("std.lisp");
+  if(stdmod_ifs.fail()) {
+    cerr << "failed to load 'std.lisp'!" << endl;
+    Lisp::clean_up();
+    return 1;
   }
+  string stdmod((istreambuf_iterator<char>(stdmod_ifs)), istreambuf_iterator<char>());
+  evaluator.evaluate(Lisp::parse(stdmod));
+
+  string code((istreambuf_iterator<char>(cin)), istreambuf_iterator<char>());
+  evaluator.evaluate(Lisp::parse(code));
+
+  Lisp::clean_up();
 
   return 0;
 }
