@@ -417,7 +417,7 @@ namespace Lisp {
         }
         else if(name == "require") {
           // load dynamic module
-          auto modname = "plugin/" + regard<String>(evaluate(list->get(1)))->value;
+          auto modname = "plugin/" + regard<String>(evaluate(list->get(1)))->value + ".so";
           auto handle = dlopen(modname.c_str(), RTLD_LAZY);
           if(!handle) {
             throw std::logic_error("can't load dynamic module: " + modname);
