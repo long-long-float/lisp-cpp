@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gc.h"
+#include "location.h"
 
 #include <string>
 #include <cstdlib>
@@ -11,6 +12,11 @@ namespace Lisp {
 
   class Object : public GCObject {
   public:
+    Location loc;
+
+    Object() {}
+    Object(Location aloc) : loc(aloc) {}
+
     virtual std::string lisp_str() = 0;
   };
 
@@ -18,7 +24,7 @@ namespace Lisp {
   public:
     std::string value;
 
-    String(std::string &avalue) : value(avalue) {}
+    String(std::string &avalue, Location aloc = Location()) : Object(aloc), value(avalue) {}
 
     std::string lisp_str();
   };
@@ -27,8 +33,8 @@ namespace Lisp {
   public:
     long value;
 
-    Integer(std::string &avalue)  : value(std::atol(avalue.c_str())) {}
-    Integer(long avalue) : value(avalue) {}
+    Integer(std::string &avalue, Location aloc = Location())  : Object(aloc), value(std::atol(avalue.c_str())) {}
+    Integer(long avalue, Location aloc = Location()) : Object(aloc), value(avalue) {}
 
     std::string lisp_str();
   };
@@ -37,7 +43,7 @@ namespace Lisp {
   public:
     std::string value;
 
-    Symbol(std::string avalue) : value(avalue) {}
+    Symbol(std::string avalue, Location aloc = Location()) : Object(aloc), value(avalue) {}
 
     std::string lisp_str();
   };
@@ -45,14 +51,14 @@ namespace Lisp {
   // TODO: RubyみたくObject*に埋め込みたい
   class Nil : public Object {
   public:
-    Nil() {}
+    Nil(Location aloc = Location()) : Object(aloc) {}
 
     std::string lisp_str();
   };
 
   class T : public Object {
   public:
-    T() {}
+    T(Location aloc = Location()) : Object(aloc) {}
 
     std::string lisp_str();
   };
@@ -61,7 +67,8 @@ namespace Lisp {
   public:
     Object *car, *cdr;
 
-    Cons(Object* acar, Object* acdr) : car(acar), cdr(acdr) {}
+    Cons(Object* acar, Object* acdr, Location aloc = Location())
+     : Object(aloc), car(acar), cdr(acdr) {}
 
     void mark();
 
@@ -80,8 +87,8 @@ namespace Lisp {
     Cons *args, *body;
     Environment *lexical_parent;
 
-    Lambda(Cons *aargs, Cons *abody, Environment* alexical_parent)
-      : args(aargs), body(abody), lexical_parent(alexical_parent) {}
+    Lambda(Cons *aargs, Cons *abody, Environment* alexical_parent, Location aloc = Location())
+      : Object(aloc), args(aargs), body(abody), lexical_parent(alexical_parent) {}
 
     std::string lisp_str();
 
@@ -93,8 +100,9 @@ namespace Lisp {
 
     Object* expand_rec(Cons* src_args, Object* cur_body);
 
-    public:
-    Macro(Cons *aargs, Cons *abody) : args(aargs), body(abody) {}
+  public:
+    Macro(Cons *aargs, Cons *abody, Location aloc = Location())
+     : Object(aloc), args(aargs), body(abody) {}
 
     Object* expand(Cons* src_args);
 

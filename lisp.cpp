@@ -28,18 +28,18 @@ using std::endl;
 namespace Lisp {
   class Error : public std::logic_error {
   public:
-    Error(std::string msg) : std::logic_error(msg) {}
+    Error(std::string msg, Location loc) : std::logic_error(msg + " @ " + loc.str()) {}
   };
 
   class NameError : public Error {
   public:
-    NameError(std::string name) : Error("undefined local variable " + name) {}
+    NameError(Symbol *sym) : Error("undefined local variable " + sym->value, sym->loc) {}
   };
 
   class TypeError : public Error  {
   public:
     TypeError(Object* obj, std::string expected_type) :
-      Error(obj->lisp_str() + " is not " + expected_type) {}
+      Error(obj->lisp_str() + " is not " + expected_type, obj->loc) {}
   };
 
   class Parser {
@@ -77,7 +77,7 @@ namespace Lisp {
         //TODO: raise an error
       }
 
-      auto first_cons = new Cons(new Nil(), new Nil());
+      auto first_cons = new Cons(new Nil(), new Nil(), cur_token()->loc);
       auto cur_cons   = first_cons;
       size_t count = 0;
       while(true) {
@@ -87,7 +87,7 @@ namespace Lisp {
         if(cur_token()->type == TOKEN_BRACKET_CLOSE) break;
 
         if(count != 0) {
-          cur_cons->cdr = new Cons(new Nil(), new Nil());
+          cur_cons->cdr = new Cons(new Nil(), new Nil(), cur_token()->loc);
           cur_cons = (Cons*)cur_cons->cdr;
         }
         cur_cons->car = parse_expr();
@@ -111,15 +111,15 @@ namespace Lisp {
       switch(ttype) {
         case TOKEN_BRACKET_OPEN: return nullptr; //not reached
         case TOKEN_SYMBOL:
-          return new Symbol(ctoken->value);
+          return new Symbol(ctoken->value, ctoken->loc);
         case TOKEN_STRING:
-          return new String(ctoken->value);
+          return new String(ctoken->value, ctoken->loc);
         case TOKEN_INTEGER:
-          return new Integer(ctoken->value);
+          return new Integer(ctoken->value, ctoken->loc);
         case TOKEN_NIL:
-          return new Nil();
+          return new Nil(ctoken->loc);
         case TOKEN_T:
-          return new T();
+          return new T(ctoken->loc);
         default:
           throw std::logic_error("unknown token: " + std::to_string(cur_token()->type));
       }
@@ -137,17 +137,22 @@ namespace Lisp {
     std::list<Token*> tokenize(const std::string &code) {
       std::list<Token*> tokens;
 
+      int lineno = 1, colno = 0;
+
       for(size_t i = 0 ; i < code.size() - 1 ; i++) { //TODO: -1を修正(EOFっぽい?)
         char ch = code[i];
+
+        size_t ti = i; // for calcurating lineno
+
         if(ch == ';') { // comment
           while(code[i] != '\n' && i < code.size()) {
             i++;
           }
         }
         else if(ch == '(')
-          tokens.push_back(new Token(TOKEN_BRACKET_OPEN));
+          tokens.push_back(new Token(TOKEN_BRACKET_OPEN, Location(lineno, colno)));
         else if(ch == ')')
-          tokens.push_back(new Token(TOKEN_BRACKET_CLOSE));
+          tokens.push_back(new Token(TOKEN_BRACKET_CLOSE, Location(lineno, colno)));
         else if(ch == '"') { // string
           i++;
 
@@ -158,11 +163,15 @@ namespace Lisp {
               //TODO: raise an error
             }
           }
-          tokens.push_back(new Token(TOKEN_STRING, code.substr(i, token_len)));
+          tokens.push_back(new Token(TOKEN_STRING, code.substr(i, token_len), Location(lineno, colno)));
           i += token_len;
         }
-        else if(ch == ' ' || ch == '\n')
-          ;//skip
+        else if(ch == ' ')
+          ; // skip
+        else if(ch == '\n') {
+          lineno++;
+          colno = 0;
+        }
         else if((ch == '-' && is_number(code[i + 1])) || is_number(ch)) {
           size_t token_len = 0;
 
@@ -176,7 +185,7 @@ namespace Lisp {
           }
 
           std::string token_val = code.substr(i, token_len);
-          tokens.push_back(new Token(TOKEN_INTEGER, token_val));
+          tokens.push_back(new Token(TOKEN_INTEGER, token_val, Location(lineno, colno)));
 
           i += token_len - 1;
         }
@@ -199,12 +208,14 @@ namespace Lisp {
             token_type = TOKEN_SYMBOL;
 
           if(token_type == TOKEN_SYMBOL)
-            tokens.push_back(new Token(TOKEN_SYMBOL, token_val));
+            tokens.push_back(new Token(TOKEN_SYMBOL, token_val, Location(lineno, colno)));
           else
-            tokens.push_back(new Token(token_type));
+            tokens.push_back(new Token(token_type, Location(lineno, colno)));
 
           i += token_len - 1;
         }
+
+        colno += i - ti + 1;
       }
 
       return tokens;
@@ -424,7 +435,7 @@ namespace Lisp {
         auto val = cur_env->get(name->value);
         if(val != nullptr) return val;
 
-        throw NameError(name->value);
+        throw NameError(name);
       }
 
       return obj;

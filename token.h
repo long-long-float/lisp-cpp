@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gc.h"
+#include "location.h"
 #include <string>
 
 namespace Lisp {
@@ -20,9 +21,12 @@ namespace Lisp {
   public:
     TokenType type;
     std::string value;
+    Location loc;
 
-    Token(TokenType atype) : type(atype), value(std::string()) {}
-    Token(TokenType atype, std::string avalue) : type(atype), value(avalue) {}
+    Token(TokenType atype, Location aloc)
+     : type(atype), value(std::string()), loc(aloc) {}
+    Token(TokenType atype, std::string avalue, Location aloc)
+     : type(atype), value(avalue), loc(aloc) {}
 
     std::string str();
   };
