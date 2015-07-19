@@ -25,74 +25,7 @@
 using std::cout;
 using std::endl;
 
-enum ExpressionType {
-  EXPRESSION_LIST,
-  EXPRESSION_SYMBOL = Lisp::TOKEN_SYMBOL,
-  EXPRESSION_STRING,
-  EXPRESSION_INTEGER,
-  EXPRESSION_NIL = Lisp::TOKEN_NIL,
-  EXPRESSION_T,
-};
-
 namespace Lisp {
-  class Expression : public GCObject {
-  public:
-    ExpressionType type;
-    std::string value;
-
-    Expression(ExpressionType atype) : type(atype) {}
-    Expression(ExpressionType atype, std::string avalue) : type(atype), value(avalue) {}
-
-    virtual Object* to_obj() {
-      switch(type) {
-        case EXPRESSION_LIST:
-          // this must be converted in Evaluator.evaluate
-          break;
-        case EXPRESSION_STRING:
-          return new String(value);
-        case EXPRESSION_NIL:
-          return new Nil();
-        case EXPRESSION_T:
-          return new T();
-        case EXPRESSION_SYMBOL:
-          return new Symbol(value);
-        case EXPRESSION_INTEGER:
-          return new Integer(value);
-     }
-     throw std::logic_error("unknown expression: " + std::to_string(type));
-    }
-
-    std::string str() { return std::to_string(type); }
-  };
-
-  class List : public Expression {
-  public:
-    std::vector<Expression*> values;
-
-    List() : Expression(EXPRESSION_LIST) {}
-
-    Object* to_obj() {
-      auto first_cons = new Cons(new Nil(), new Nil());
-      auto cur_cons   = first_cons;
-      size_t count = 0;
-      for(auto expr : values) {
-        if(count != 0) {
-          cur_cons->cdr = new Cons(new Nil(), new Nil());
-          cur_cons = (Cons*)cur_cons->cdr;
-        }
-        cur_cons->car = expr->to_obj();
-
-        count++;
-      }
-
-      return first_cons;
-    };
-
-    Expression* get(size_t index) {
-      return values[index];
-    }
-  };
-
   class Error : public std::logic_error {
   public:
     Error(std::string msg) : std::logic_error(msg) {}
@@ -111,7 +44,7 @@ namespace Lisp {
 
   class Parser {
   public:
-    std::vector<Expression*> parse(const std::string &code) {
+    std::vector<Object*> parse(const std::string &code) {
       tokens = tokenize(code);
 
       if(false) { // NOTE: for debug
@@ -120,7 +53,7 @@ namespace Lisp {
         }
       }
 
-      std::vector<Expression*> exprs;
+      std::vector<Object*> exprs;
       while(!tokens.empty()) {
         exprs.push_back(parse_expr());
       }
@@ -138,45 +71,58 @@ namespace Lisp {
       if(!tokens.empty()) tokens.pop_front();
     }
 
-    List* parse_list() {
+    Cons* parse_list() {
       consume_token();
       if(cur_token()->type != TOKEN_SYMBOL) {
         //TODO: raise an error
       }
 
-      List* list = new List();
+      auto first_cons = new Cons(new Nil(), new Nil());
+      auto cur_cons   = first_cons;
+      size_t count = 0;
       while(true) {
         if(tokens.empty()) {
           throw std::logic_error("unexpected end of code : expected ')'");
         }
         if(cur_token()->type == TOKEN_BRACKET_CLOSE) break;
-        list->values.push_back(parse_expr());
+
+        if(count != 0) {
+          cur_cons->cdr = new Cons(new Nil(), new Nil());
+          cur_cons = (Cons*)cur_cons->cdr;
+        }
+        cur_cons->car = parse_expr();
+
+        count++;
       }
 
-      return list;
+      return first_cons;
     }
 
-    Expression* parse_expr() {
-      Expression* ret;
-      auto ttype = cur_token()->type;
+    Object* parse_expr() {
+      auto ctoken = cur_token();
+      auto ttype = ctoken->type;
+      if(ttype == TOKEN_BRACKET_OPEN) {
+        auto ret = parse_list();
+        consume_token();
+        return ret;
+      }
+
+      consume_token();
       switch(ttype) {
-        case TOKEN_BRACKET_OPEN:
-          ret = parse_list();
-          break;
-        case TOKEN_SYMBOL: // == EXPRESSION_SYMBOL
+        case TOKEN_BRACKET_OPEN: return nullptr; //not reached
+        case TOKEN_SYMBOL:
+          return new Symbol(ctoken->value);
         case TOKEN_STRING:
+          return new String(ctoken->value);
         case TOKEN_INTEGER:
-          ret = new Expression((ExpressionType)ttype, cur_token()->value);
-          break;
-        case TOKEN_NIL: // == EXPRESSION_NIL
+          return new Integer(ctoken->value);
+        case TOKEN_NIL:
+          return new Nil();
         case TOKEN_T:
-          ret = new Expression((ExpressionType)ttype);
-          break;
+          return new T();
         default:
           throw std::logic_error("unknown token: " + std::to_string(cur_token()->type));
       }
-      consume_token();
-      return ret;
     }
 
     bool is_symbol(char c) {
@@ -529,16 +475,8 @@ namespace Lisp {
   };
 
   std::vector<Object*> parse(std::string &code) {
-    using namespace std;
-
-    Parser parser;
-    auto exprs = parser.parse(code);
-    vector<Object*> exprs2(exprs.size());
-    for(size_t i = 0 ; i < exprs.size() ; i++) {
-      exprs2[i] = exprs[i]->to_obj();
-    }
-
-    return exprs2;
+    Parser p;
+    return p.parse(code);
   }
 
   void clean_up() {

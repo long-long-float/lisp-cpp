@@ -1,5 +1,8 @@
 #pragma once
 
+#include "gc.h"
+#include <string>
+
 namespace Lisp {
   enum TokenType{
     TOKEN_BRACKET_OPEN,
@@ -11,21 +14,16 @@ namespace Lisp {
     TOKEN_T,
   };
 
+  class Object;
+
   class Token : public GCObject {
   public:
     TokenType type;
     std::string value;
 
-    Token(TokenType atype) : type(atype), value(std::string()) {
-    }
+    Token(TokenType atype) : type(atype), value(std::string()) {}
+    Token(TokenType atype, std::string avalue) : type(atype), value(avalue) {}
 
-    Token(TokenType atype, std::string avalue) : type(atype), value(avalue) {
-    }
-
-    std::string str() {
-      std::stringstream ss;
-      ss << "Token(" << type << ", " << value << ")";
-      return ss.str();
-    }
+    std::string str();
   };
 }
