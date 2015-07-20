@@ -1,6 +1,8 @@
 #include "object.h"
 #include "environment.h"
 
+#include <typeinfo>
+
 namespace Lisp {
   std::string String::lisp_str() { return '"' + value + '"'; }
 
