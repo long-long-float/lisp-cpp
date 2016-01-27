@@ -8,3 +8,7 @@ A pure lisp interpreter of C++
 ## Usage
 
     $ ./lisp < FILE
+
+## Wiki(in Japanese)
+
+https://github.com/long-long-float/lisp-cpp/wiki
